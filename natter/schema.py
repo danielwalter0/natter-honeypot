@@ -19,11 +19,9 @@ plain code, with tests:
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-T = TypeVar("T")
 
 
 class _Strict(BaseModel):
@@ -89,7 +87,7 @@ class InfoRequested(StrEnum):
     ONE_TIME_CODE = "one_time_code"
     PIN = "pin"
     FULL_CARD_NUMBER = "full_card_number"
-    PASSWORD = "password"
+    PASSWORD = "password"  # noqa: S105  enum label for what was asked, not a secret
     REMOTE_ACCESS = "remote_access"
     OTHER = "other"
 
@@ -112,7 +110,7 @@ class Evidence(_Strict):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
-class Sourced(_Strict, Generic[T]):
+class Sourced[T](_Strict):  # Python 3.12 generic syntax: T is the value's type
     """A value plus the evidence that backs it."""
 
     value: T

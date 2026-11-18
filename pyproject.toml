@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "natter"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = ["pydantic==2.14.3"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "ruff==0.17.5", "mypy==2.4.1"]
+
+[tool.setuptools]
+packages = ["natter"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# E/F: pycodestyle and pyflakes, I: import order, B: bugbear, UP: modern syntax, S: bandit security
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest tests are written with plain assert, which rule S101 flags; only tests are exempt
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# Lets mypy understand pydantic models (field types and constructors)
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
