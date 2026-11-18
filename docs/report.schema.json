@@ -1,0 +1,511 @@
+{
+  "$defs": {
+    "CallerType": {
+      "enum": [
+        "human",
+        "ai_voice",
+        "recording",
+        "unclear"
+      ],
+      "title": "CallerType",
+      "type": "string"
+    },
+    "Dossier": {
+      "additionalProperties": false,
+      "properties": {
+        "claimed_organisation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_str_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scam_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_ScamType_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_Stage_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "payment_method": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_PaymentMethod_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_Money_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "identifiers": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "title": "Identifiers",
+          "type": "array"
+        },
+        "pressure_tactics": {
+          "items": {
+            "$ref": "#/$defs/Sourced_Tactic_"
+          },
+          "title": "Pressure Tactics",
+          "type": "array"
+        },
+        "information_requested": {
+          "items": {
+            "$ref": "#/$defs/Sourced_InfoRequested_"
+          },
+          "title": "Information Requested",
+          "type": "array"
+        },
+        "injection_attempt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sourced_bool_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "caller_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Judgement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Dossier",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "Proof for one dossier value: which turn, what was said, how sure.",
+      "properties": {
+        "turn": {
+          "minimum": 0,
+          "title": "Turn",
+          "type": "integer"
+        },
+        "quote": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Quote",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "turn",
+        "quote",
+        "confidence"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Identifier": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/IdentifierKind"
+        },
+        "value": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "kind",
+        "value",
+        "evidence"
+      ],
+      "title": "Identifier",
+      "type": "object"
+    },
+    "IdentifierKind": {
+      "enum": [
+        "phone",
+        "url",
+        "email",
+        "account_number",
+        "alias",
+        "case_reference"
+      ],
+      "title": "IdentifierKind",
+      "type": "string"
+    },
+    "InfoRequested": {
+      "enum": [
+        "one_time_code",
+        "pin",
+        "full_card_number",
+        "password",
+        "remote_access",
+        "other"
+      ],
+      "title": "InfoRequested",
+      "type": "string"
+    },
+    "Judgement": {
+      "additionalProperties": false,
+      "description": "An assessment with no quote. Used only for caller_type.",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/CallerType"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "rationale": {
+          "maxLength": 200,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "confidence",
+        "rationale"
+      ],
+      "title": "Judgement",
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "exclusiveMinimum": 0,
+          "title": "Amount",
+          "type": "number"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "PaymentMethod": {
+      "enum": [
+        "bank_transfer",
+        "gift_cards",
+        "crypto",
+        "cash_courier",
+        "card_details",
+        "remote_access",
+        "other"
+      ],
+      "title": "PaymentMethod",
+      "type": "string"
+    },
+    "ScamType": {
+      "enum": [
+        "bank_impersonation",
+        "tech_support",
+        "tax_authority",
+        "parcel_delivery",
+        "other"
+      ],
+      "title": "ScamType",
+      "type": "string"
+    },
+    "Sourced_InfoRequested_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/InfoRequested"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[InfoRequested]",
+      "type": "object"
+    },
+    "Sourced_Money_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Money"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[Money]",
+      "type": "object"
+    },
+    "Sourced_PaymentMethod_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/PaymentMethod"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[PaymentMethod]",
+      "type": "object"
+    },
+    "Sourced_ScamType_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/ScamType"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[ScamType]",
+      "type": "object"
+    },
+    "Sourced_Stage_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Stage"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[Stage]",
+      "type": "object"
+    },
+    "Sourced_Tactic_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Tactic"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[Tactic]",
+      "type": "object"
+    },
+    "Sourced_bool_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[bool]",
+      "type": "object"
+    },
+    "Sourced_str_": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "title": "Sourced[str]",
+      "type": "object"
+    },
+    "Stage": {
+      "enum": [
+        "hook",
+        "pressure",
+        "payment_ask",
+        "closing"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "Tactic": {
+      "enum": [
+        "urgency",
+        "authority",
+        "fear",
+        "secrecy",
+        "isolation"
+      ],
+      "title": "Tactic",
+      "type": "string"
+    },
+    "Turn": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "speaker": {
+          "enum": [
+            "scammer",
+            "persona"
+          ],
+          "title": "Speaker",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "speaker",
+        "text"
+      ],
+      "title": "Turn",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "call_id": {
+      "pattern": "^[a-z0-9_-]{1,64}$",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "scenario_id": {
+      "pattern": "^[a-z0-9_-]{1,64}$",
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "replay",
+        "live"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "turns": {
+      "items": {
+        "$ref": "#/$defs/Turn"
+      },
+      "title": "Turns",
+      "type": "array"
+    },
+    "dossier": {
+      "$ref": "#/$defs/Dossier"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "required": [
+    "call_id",
+    "scenario_id",
+    "mode",
+    "turns",
+    "dossier"
+  ],
+  "title": "Report",
+  "type": "object"
+}
