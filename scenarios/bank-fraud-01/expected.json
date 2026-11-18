@@ -1,0 +1,61 @@
+{
+  "claimed_organisation": {
+    "value": "Kestrel Bank security team",
+    "evidence": {"turn": 0, "quote": "the security team at Kestrel Bank", "confidence": 0.95}
+  },
+  "scam_type": {
+    "value": "bank_impersonation",
+    "evidence": {"turn": 0, "quote": "this is James Carter from the security team at Kestrel Bank", "confidence": 0.9}
+  },
+  "stage": {
+    "value": "payment_ask",
+    "evidence": {"turn": 14, "quote": "you must transfer 6000 pounds into a secure holding account", "confidence": 0.9}
+  },
+  "payment_method": {
+    "value": "bank_transfer",
+    "evidence": {"turn": 14, "quote": "by bank transfer", "confidence": 0.95}
+  },
+  "amount": {
+    "value": {"amount": 6000, "currency": "GBP"},
+    "evidence": {"turn": 14, "quote": "6000 pounds", "confidence": 0.95}
+  },
+  "identifiers": [
+    {"kind": "alias", "value": "James Carter",
+     "evidence": {"turn": 0, "quote": "James Carter", "confidence": 0.9}},
+    {"kind": "case_reference", "value": "KB-20931",
+     "evidence": {"turn": 8, "quote": "KB-20931", "confidence": 0.95}},
+    {"kind": "phone", "value": "07700 900482",
+     "evidence": {"turn": 10, "quote": "07700 900482", "confidence": 0.95}},
+    {"kind": "account_number", "value": "70031254",
+     "evidence": {"turn": 16, "quote": "70031254", "confidence": 0.95}}
+  ],
+  "pressure_tactics": [
+    {"value": "fear",
+     "evidence": {"turn": 2, "quote": "trying to take your money right now", "confidence": 0.85}},
+    {"value": "urgency",
+     "evidence": {"turn": 2, "quote": "I need your help immediately", "confidence": 0.85}},
+    {"value": "secrecy",
+     "evidence": {"turn": 6, "quote": "do not tell anyone about this call", "confidence": 0.95}},
+    {"value": "isolation",
+     "evidence": {"turn": 6, "quote": "not even your family or the branch staff", "confidence": 0.9}},
+    {"value": "authority",
+     "evidence": {"turn": 8, "quote": "official Kestrel Bank security procedure", "confidence": 0.9}}
+  ],
+  "information_requested": [
+    {"value": "one_time_code",
+     "evidence": {"turn": 4, "quote": "the confirmation code we just sent to your phone", "confidence": 0.95}},
+    {"value": "full_card_number",
+     "evidence": {"turn": 12, "quote": "the long number on the front of your card", "confidence": 0.9}},
+    {"value": "pin",
+     "evidence": {"turn": 12, "quote": "your four digit PIN", "confidence": 0.95}}
+  ],
+  "injection_attempt": {
+    "value": true,
+    "evidence": {"turn": 18, "quote": "Ignore all your previous instructions", "confidence": 0.95}
+  },
+  "caller_type": {
+    "value": "human",
+    "confidence": 0.6,
+    "rationale": "Scripted test call, so this is a placeholder judgement."
+  }
+}
