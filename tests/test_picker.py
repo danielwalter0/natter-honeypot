@@ -66,6 +66,22 @@ def test_missing_case_reference_is_wanted() -> None:
     assert next_goal(d) == Goal.CASE_REFERENCE
 
 
+@pytest.mark.parametrize("kind", [k for k in IdentifierKind if k != IdentifierKind.PHONE])
+def test_every_non_phone_kind_is_not_callback_number(kind: IdentifierKind) -> None:
+    other = ident(IdentifierKind.ALIAS).model_copy(update={"kind": kind})
+    assert next_goal(Dossier(identifiers=[other])) == Goal.CALLBACK_NUMBER
+
+
+def test_account_number_is_not_case_reference() -> None:
+    # An account number sits where the case reference was, but must not satisfy it
+    account = ident(IdentifierKind.CASE_REFERENCE).model_copy(
+        update={"kind": IdentifierKind.ACCOUNT_NUMBER}
+    )
+    others = [i for i in FULL.identifiers if i.kind != IdentifierKind.CASE_REFERENCE]
+    d = FULL.model_copy(update={"identifiers": [*others, account]})
+    assert next_goal(d) == Goal.CASE_REFERENCE
+
+
 def test_later_fields_do_not_skip_missing_phone() -> None:
     no_phone = [i for i in FULL.identifiers if i.kind != IdentifierKind.PHONE]
     d = FULL.model_copy(update={"identifiers": no_phone})

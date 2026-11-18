@@ -50,8 +50,11 @@ def run(
     turns: list[Turn] = TURNS,
 ) -> None:
     """Check the result equals proposed with expect_update applied, and the rejected fields."""
+    before = proposed.model_dump()  # snapshot so we can prove the input is not mutated
+    expected = proposed.model_copy(update=expect_update)  # built before the call on purpose
     result, rejections = check_dossier(proposed, turns, previous)
-    assert result == proposed.model_copy(update=expect_update)
+    assert proposed.model_dump() == before
+    assert result == expected
     assert sorted(r.field for r in rejections) == sorted(rejected)
     assert all(isinstance(r.reason, str) and r.reason for r in rejections)
 
