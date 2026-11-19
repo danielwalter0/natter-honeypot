@@ -6,7 +6,7 @@ import pytest
 from natter.__main__ import MAX_TURNS, SCENARIO, load_lines
 from natter.cache import Cache, CachedExtractor, CachedPersona
 from natter.picker import Goal
-from natter.providers import claude_extractor, groq_persona
+from natter.providers import claude_extractor, groq_persona, reply_tidy
 from natter.providers.claude_extractor import ClaudeExtractor
 from natter.providers.groq_persona import GroqPersona
 from natter.providers.replay_only import ReplayOnly
@@ -40,7 +40,7 @@ def test_recorded_cache_replays_without_keys(
     # Test-local stand-ins so this test does not depend on the owner's builders
     monkeypatch.setattr(claude_extractor, "build_user_message", lambda t: "stub")
     monkeypatch.setattr(groq_persona, "build_messages", lambda t, g: [{"role": "system"}])
-    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
+    monkeypatch.setattr(reply_tidy, "introduces_new_number", lambda r, t: False)
     monkeypatch.setenv("GROQ_API_KEY", "sk-test")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     record = Cache(tmp_path, "record")

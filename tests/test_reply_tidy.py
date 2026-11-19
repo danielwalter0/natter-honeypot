@@ -4,12 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from natter.providers import groq_persona
-from natter.providers.groq_persona import (
+from natter.providers import groq_persona, reply_tidy
+from natter.providers.groq_persona import SYSTEM_PROMPT, GroqPersona
+from natter.providers.reply_tidy import (
     MAX_PERSONA_CHARS,
     SAFE_STALL,
-    SYSTEM_PROMPT,
-    GroqPersona,
     looks_like_refusal,
     plain_spaces,
     tidy_reply,
@@ -18,7 +17,7 @@ from natter.schema import Turn
 from tests.fake_clients import FakeFactory, groq_response
 
 # Captured before any test patches the module attribute
-REAL_GUARD = groq_persona.introduces_new_number
+REAL_GUARD = reply_tidy.introduces_new_number
 
 CALLER_NUMBER = "If we get disconnected, call me back directly on 07700 900482 and ask for James."
 
@@ -30,7 +29,7 @@ def caller(*texts: str) -> list[Turn]:
 @pytest.fixture
 def no_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     # Test-local stand-in so tidy tests do not depend on the owner's guard
-    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
+    monkeypatch.setattr(reply_tidy, "introduces_new_number", lambda r, t: False)
 
 
 # --- introduces_new_number: the owner writes it; red until then ---
@@ -171,7 +170,7 @@ def test_whitespace_is_collapsed(no_guard: None) -> None:
 
 
 def test_new_number_gives_the_stall_line(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: True)
+    monkeypatch.setattr(reply_tidy, "introduces_new_number", lambda r, t: True)
     assert tidy_reply("My card number is 4929 1234 5678 9012.", []) == SAFE_STALL
 
 
