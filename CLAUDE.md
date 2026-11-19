@@ -29,6 +29,7 @@ The full design is in `docs/SPEC.md`. The report shape is in `natter/schema.py`.
 - Never log raw audio. Never load pickle files.
 - Keep the limits: maximum call length, per-session turn cap, daily spend cap, WebSocket origin allow-list.
 - Simulated scenarios only. No telephony, no outbound calling, no voice cloning, no real people's audio.
+- Never read, copy or print .env.
 
 ## Never, without asking
 

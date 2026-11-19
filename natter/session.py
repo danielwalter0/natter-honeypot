@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from natter.check import Rejection, check_dossier
-from natter.picker import next_goal
+from natter.picker import Goal, next_goal
 from natter.providers.base import Extractor, Persona
 from natter.schema import Dossier, Turn
 
@@ -15,6 +15,10 @@ class SessionResult:
     transcript: list[Turn]  # every turn, scammer and persona, in order
     dossier: Dossier  # latest checked dossier (empty Dossier() if no turns)
     rejections: list[Rejection]  # every drop from every turn, in order
+    # rejection_turns[i] is the scammer turn whose extraction dropped rejections[i]
+    rejection_turns: list[int]
+    # goals[i] is the goal given to persona reply i (None: nothing left to ask, or a stall turn)
+    goals: list[Goal | None]
 
 
 def snapshot(transcript: list[Turn]) -> list[Turn]:
@@ -30,6 +34,7 @@ def run_session(
     max_turns caps the TOTAL number of turns (scammer and persona together).
     previous_stage is the last ACCEPTED stage (a Stage), carried across turns,
     so a rejected stage can never reset it to None. It starts as None.
+    previous_goal is the goal given on the last reply (None if she was told to stall).
     The final dossier is the latest checked dossier, or Dossier() if there
     were no turns. Rejections from every turn are kept, in order.
     scammer_lines must never be mutated.
@@ -42,15 +47,21 @@ def run_session(
        and add dropped to the rejections.
     5. If dossier.stage is not None, set previous_stage = dossier.stage.value.
     6. Stop if len(transcript) >= max_turns.
-    7. goal = next_goal(dossier); text = persona.reply(snapshot(transcript), goal);
-       append Turn(index=len(transcript), speaker="persona", text=text).
+    7. goal = next_goal(dossier). If it equals previous_goal, use None instead, so
+       she never asks for the same thing on two replies running.
+       text = persona.reply(snapshot(transcript), goal);
+       append Turn(index=len(transcript), speaker="persona", text=text),
+       and append goal to goals.
     """
     if isinstance(max_turns, bool) or not isinstance(max_turns, int) or max_turns < 0:
         raise ValueError("max_turns must be a whole number, zero or more")
     transcript: list[Turn] = []
     rejections: list[Rejection] = []
+    rejection_turns: list[int] = []
+    goals: list[Goal | None] = []
     dossier = Dossier()
     previous_stage = None
+    previous_goal: Goal | None = None  # CHANGE 1: remembers the last goal she was given
     for line in scammer_lines:
         if len(transcript) >= max_turns:
             break
@@ -58,11 +69,22 @@ def run_session(
         proposed = extractor.extract(snapshot(transcript))
         dossier, dropped = check_dossier(proposed, transcript, previous_stage)
         rejections.extend(dropped)
+        rejection_turns.extend([len(transcript) - 1] * len(dropped))  # the scammer turn
         if dossier.stage is not None:
             previous_stage = dossier.stage.value
         if len(transcript) >= max_turns:
             break
         goal = next_goal(dossier)
+        if goal is not None and goal == previous_goal:  # CHANGE 2: same as last time?
+            goal = None  # then stall this reply instead of asking again
+        previous_goal = goal  # CHANGE 3: remember what she was actually given
         text = persona.reply(snapshot(transcript), goal)
+        goals.append(goal)  # recorded only once a reply exists, so goals matches persona turns
         transcript.append(Turn(index=len(transcript), speaker="persona", text=text))
-    return SessionResult(transcript=transcript, dossier=dossier, rejections=rejections)
+    return SessionResult(
+        transcript=transcript,
+        dossier=dossier,
+        rejections=rejections,
+        rejection_turns=rejection_turns,
+        goals=goals,
+    )
