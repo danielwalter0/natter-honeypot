@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from natter.picker import Goal
+from natter.picker import Goal, next_goal
 from natter.providers.fakes import FakeExtractor, FakePersona
 from natter.schema import (
     Dossier,
@@ -321,3 +321,44 @@ def test_each_rejection_records_its_scammer_turn() -> None:
     result = run_session(LINES, RecordingPersona(), ScriptedExtractor([proposal]), 100)
     assert len(result.rejection_turns) == len(result.rejections) == 6
     assert result.rejection_turns == [0, 0, 2, 2, 4, 4]
+
+
+def test_goals_record_the_goal_given_to_each_persona_reply() -> None:
+    """goals[i] is the goal passed for persona reply i: next_goal of the checked dossier."""
+    phone = Identifier(
+        kind=IdentifierKind.PHONE,
+        value="first line",
+        evidence=Evidence(turn=0, quote="first line", confidence=0.9),
+    )
+    method = Sourced[PaymentMethod](
+        value=PaymentMethod.BANK_TRANSFER,
+        evidence=Evidence(turn=4, quote="third line", confidence=0.9),
+    )
+    dossiers = [
+        Dossier(),  # turn 0: nothing yet
+        Dossier(identifiers=[phone]),  # turn 2: callback number found
+        Dossier(identifiers=[phone], payment_method=method),  # turn 4: payment method found
+    ]
+    persona = RecordingPersona()
+    result = run_session(LINES, persona, ScriptedExtractor(dossiers), 100)
+    assert len(result.goals) == 3  # one entry per persona turn
+    assert result.goals == [Goal.CALLBACK_NUMBER, Goal.PAYMENT_METHOD, Goal.CLAIMED_ORGANISATION]
+    assert result.goals == [goal for _, goal in persona.calls]  # what reply() really got
+    assert result.goals == [next_goal(d) for d in dossiers]  # these dossiers all pass the check
+
+
+def test_goals_stop_when_the_turn_cap_cuts_the_persona() -> None:
+    """No persona reply means no goal entry."""
+    result = run_session(LINES, RecordingPersona(), ScriptedExtractor([Dossier()]), 3)
+    assert len(result.goals) == sum(t.speaker == "persona" for t in result.transcript) == 1
+
+
+def test_same_goal_twice_running_becomes_a_stall() -> None:
+    """next_goal is CALLBACK_NUMBER every turn, so the session alternates ask and stall."""
+    lines = ["one line here", "two line here", "three line here", "four line here"]
+    persona = RecordingPersona()
+    # An empty dossier every turn: no phone number, so next_goal is always CALLBACK_NUMBER
+    result = run_session(lines, persona, ScriptedExtractor([Dossier()]), 100)
+    assert next_goal(Dossier()) == Goal.CALLBACK_NUMBER
+    assert result.goals == [Goal.CALLBACK_NUMBER, None, Goal.CALLBACK_NUMBER, None]
+    assert [goal for _, goal in persona.calls] == result.goals  # exactly what reply() got

@@ -8,6 +8,7 @@ from natter.providers.groq_persona import (
     SAFE_STALL,
     SYSTEM_PROMPT,
     GroqPersona,
+    plain_spaces,
     tidy_reply,
 )
 from natter.schema import Turn
@@ -108,6 +109,29 @@ def test_dash_pause_becomes_a_comma(no_guard: None, raw: str, spoken: str) -> No
 @pytest.mark.parametrize("word", ["KB-20931", "20-45-17", "well-known"])
 def test_hyphen_inside_a_word_is_kept(no_guard: None, word: str) -> None:
     assert tidy_reply(f"It was {word}, dear.", []) == f"It was {word}, dear."
+
+
+@pytest.mark.parametrize(
+    ("raw", "spoken"),
+    [
+        ("Could you give me a moment?", "Could you give me a moment?"),  # narrow NBSP
+        ("If you would, dear.", "If you would, dear."),  # no-break space
+        ("a b", "a b"),  # thin space
+        ("a　b", "a b"),  # ideographic space
+        ("a​b", "ab"),  # zero-width space
+        ("a‌‍⁠﻿b", "ab"),  # the other zero-width characters
+    ],
+)
+def test_unicode_spaces_become_spaces_and_zero_width_goes(
+    no_guard: None, raw: str, spoken: str
+) -> None:
+    assert tidy_reply(raw, []) == spoken
+
+
+def test_every_isspace_character_becomes_a_space() -> None:
+    # Checks the helper over all of Unicode, so no space character is ever deleted
+    spaces = [chr(c) for c in range(0x110000) if chr(c).isspace()]
+    assert all(plain_spaces(f"a{ch}b") == "a b" for ch in spaces)
 
 
 def test_whitespace_is_collapsed(no_guard: None) -> None:

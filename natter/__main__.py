@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from natter.cache import Cache, CachedExtractor, CachedPersona
+from natter.picker import Goal
 from natter.providers import claude_extractor, groq_persona
 from natter.providers.base import Extractor, Persona
 from natter.providers.fakes import FakeExtractor, FakePersona
@@ -76,6 +77,11 @@ def save_report(report: Report, folder: Path = REPORTS) -> Path:
     return path
 
 
+def goal_line(turn_index: int, goal: Goal | None) -> str:
+    """One line of the goal trace, e.g. "turn 1: callback_number" or "turn 3: none"."""
+    return f"turn {turn_index}: {'none' if goal is None else goal.value}"
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Read the command line. An unknown flag prints usage and exits with code 2."""
     parser = argparse.ArgumentParser(prog="python -m natter")
@@ -97,6 +103,11 @@ def main(argv: list[str] | None = None) -> None:
         # Each drop with the scammer turn whose extraction proposed it
         for turn_index, rejection in zip(result.rejection_turns, result.rejections, strict=True):
             print(f"turn {turn_index}, {rejection.field}: {rejection.reason}")
+    # Which goal steered each persona reply (goals has one entry per persona turn)
+    print("Goal trace")
+    persona_turns = [turn.index for turn in result.transcript if turn.speaker == "persona"]
+    for turn_index, goal in zip(persona_turns, result.goals, strict=True):
+        print(goal_line(turn_index, goal))
     print(f"Saved: {save_report(report, REPORTS)}")
 
 

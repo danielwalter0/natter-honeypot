@@ -12,6 +12,7 @@ from natter.__main__ import (
     MAX_TURNS,
     SCENARIO,
     build_report,
+    goal_line,
     load_lines,
     main,
     make_call_id,
@@ -146,3 +147,23 @@ def test_unknown_flag_errors() -> None:
     with pytest.raises(SystemExit) as info:
         main(["--live"])
     assert info.value.code == 2  # argparse's usage-error exit code
+
+
+def test_replay_prints_the_goal_trace(offline: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    main(["--replay"])
+    out = capsys.readouterr().out
+    assert out.index("Rejections:") < out.index("Goal trace") < out.index("Saved:")
+    trace = out[out.index("Goal trace") : out.index("Saved:")].splitlines()[1:]
+    # SpyExtractor never finds a phone number, so next_goal is callback_number every
+    # turn. The session never gives the same goal twice running, so it is passed on
+    # every other reply and the replies between get None (a stall).
+    expected = [
+        f"turn {t}: {'callback_number' if n % 2 == 0 else 'none'}"
+        for n, t in enumerate(range(1, 20, 2))
+    ]
+    assert trace == expected  # callback_number on 1, 5, 9, 13, 17; none on 3, 7, 11, 15, 19
+
+
+def test_goal_line_names_none_for_no_goal() -> None:
+    assert goal_line(3, None) == "turn 3: none"
+    assert goal_line(1, Goal.AMOUNT) == "turn 1: amount"

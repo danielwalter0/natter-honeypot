@@ -66,6 +66,10 @@ TYPOGRAPHIC = str.maketrans(
     }
 )
 
+# Zero-width characters: not spaces (isspace() is False), so they are deleted.
+# A translate table that maps a character to None removes it.
+ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿"))
+
 # A dash used as a pause is spoken as a comma: an em or en dash (spaced or not), or a
 # hyphen with spaces on both sides. A hyphen inside a word (KB-20931, 20-45-17) is kept.
 DASH_PAUSE = re.compile(r"\s*[–—]\s*|\s+-\s+")
@@ -102,8 +106,21 @@ def cut_to_limit(text: str) -> str:
     return window[:space].rstrip() if space > 0 else window
 
 
+def plain_spaces(text: str) -> str:
+    """Turn every Unicode space into one ASCII space and delete zero-width characters.
+
+    Runs before any other mapping, so a space such as U+202F in "give me" is never
+    lost and the words never run together ("giveme").
+    """
+    text = text.translate(ZERO_WIDTH)
+    # isspace() covers U+00A0, U+2009, U+202F, U+3000, newlines, tabs and the rest
+    return "".join(" " if ch.isspace() else ch for ch in text)
+
+
 def tidy_reply(text: str, transcript: list[Turn]) -> str:
     """Make a model reply safe and speakable. Steps run in this order."""
+    # First: spaces made plain, zero-width characters removed (see plain_spaces)
+    text = plain_spaces(text)
     # 0. A glued second answer ("worry.Could you...") is dropped at the seam
     seam = GLUED_SEAM.search(text)
     if seam:
