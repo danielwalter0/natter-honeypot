@@ -11,3 +11,6 @@ reports/
 !.env.example
 build/
 dist/
+
+# Spike audio output
+spike_out/
