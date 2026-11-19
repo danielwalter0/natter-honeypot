@@ -26,3 +26,17 @@
 - Cache.load only checks the file parses; a wrong shape (list, number, null, `{}`), an empty/truncated/BOM file, or a mismatched stored provider/method raises an unhelpful error (TypeError/KeyError/JSONDecodeError), and in record mode a corrupt file is not re-recorded, it must be deleted by hand.
 - Writes are not atomic: a crash mid-write leaves a truncated file. Reads and writes follow symlinks.
 - The key has no prompt or model version, so after a prompt change replay serves stale replies; a real provider must put its version in `name`.
+
+## Real providers
+
+- Lookalike angle brackets (U+FF1C etc.) pass through the escaping. This is harmless as long as nothing NFKC-normalises the text.
+- The persona 200-character limit is enforced only by the prompt and the token cap (the cache allows 2000); the hard check comes with the TTS slice.
+- Provider errors end the whole session. SPEC asks for graceful degradation with a stall line and one retry (later slice).
+- SDK exceptions carry the key in `exc.request.headers`, and `vars(client)` holds the key. Never log `exc.request`, or tracebacks with locals.
+- Both SDKs honour `ANTHROPIC_BASE_URL` / `GROQ_BASE_URL` and `*_CUSTOM_HEADERS` env vars, so an env var can redirect the key. Consider an explicit `base_url`.
+- `DOSSIER_SCHEMA` contains pattern/min/max keywords the structured-output API may reject. Check on the first record run.
+- The cache key ignores prompt text, so re-record after any prompt change.
+- No daily spend cap yet. A record run is bounded only by scenario length (about 20 calls, up to 2x with one retry).
+- The `goal` argument is not type-checked in `build_messages` (only reachable from code; the owner's builder).
+- Persona text in Groq assistant messages is not escaped (the owner's builder).
+- The project venv is Python 3.14.5 while the project targets 3.12.

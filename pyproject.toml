@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "natter"
 version = "0.0.1"
 requires-python = ">=3.12"
-dependencies = ["pydantic==2.14.3"]
+dependencies = ["pydantic==2.14.3", "groq==1.7.0", "anthropic==2.4.0"]
 
 [project.optional-dependencies]
 dev = ["pytest==9.2.0", "ruff==0.17.5", "mypy==2.4.1"]
