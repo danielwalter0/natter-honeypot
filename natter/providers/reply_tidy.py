@@ -57,35 +57,43 @@ GLUED_SEAM = re.compile(r"[.!?](?=[A-Z])")
 SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
 
 
+# One number: digits joined by spaces, hyphens, slashes, full stops, commas or
+# underscores ("12/34/56", "12.34.56", "1_2_3_4"). Compared by its digits only.
+NUMBER_GROUP = re.compile(r"\d[\d\s\-/.,_]*\d")
+
+
 def introduces_new_number(reply: str, transcript: list[Turn]) -> bool:
     """True if the reply has a number of 4 or more digits the caller never said."""
     said = [re.sub(r"\D", "", turn.text) for turn in transcript if turn.speaker == "scammer"]
-    for group in re.findall(r"\d[\d\s-]*\d", reply):
+    for group in NUMBER_GROUP.findall(reply):
         digits = re.sub(r"\D", "", group)
         if len(digits) >= 4 and not any(digits in s for s in said):
             return True
     return False
 
 
-# Stock assistant refusals. The persona never refuses, so one of these means the model
-# broke character. Lower case, straight apostrophes (tidy_reply has mapped curly ones).
-REFUSAL_PHRASES = (
-    "can't help with that",
-    "cannot help with that",
-    "can't assist",
-    "cannot assist",
-    "can't comply",
-    "cannot comply",
-    "i'm sorry, but i can't",
-    "i am sorry, but i cannot",
+# A stock assistant refusal at the START of the reply, whatever its length. The persona
+# never refuses, so this means the model broke character. Read it in parts:
+#   optional apology: "I'm sorry" / "I am sorry" / "Sorry", then optional , . or !
+#   optional "but"
+#   the refusal: I can't / I cannot / I won't / I am unable to / I'm unable to
+#   the verb: help, assist, comply, provide, continue, or "do that"
+# or a reply that starts "As an AI". Straight apostrophes only: tidy_reply has mapped
+# the curly ones before this runs. "Oh I can't help with that cat" does not start with
+# the refusal, and "I can't find my glasses" has a verb not on the list.
+REFUSAL_OPENER = re.compile(
+    r"^(?:(?:i'm sorry|i am sorry|sorry)[,.!]?\s+)?"
+    r"(?:but\s+)?"
+    r"(?:i can't|i cannot|i won't|i am unable to|i'm unable to)\s+"
+    r"(?:help|assist|comply|provide|continue|do that)\b"
+    r"|^as an ai\b",
+    re.IGNORECASE,
 )
-REFUSAL_MAX_CHARS = 80  # a stock refusal is short; a long reply is the granny talking
 
 
 def looks_like_refusal(reply: str) -> bool:
-    """True if reply is a short stock refusal ("I'm sorry, but I can't help with that.")."""
-    text = reply.lower()
-    return len(text) < REFUSAL_MAX_CHARS and any(phrase in text for phrase in REFUSAL_PHRASES)
+    """True if reply opens with a stock refusal ("I'm sorry, but I can't help with that.")."""
+    return REFUSAL_OPENER.search(reply) is not None
 
 
 def cut_to_limit(text: str) -> str:
@@ -128,9 +136,11 @@ def tidy_reply(text: str, transcript: list[Turn]) -> str:
     text = SPACE_BEFORE_COMMA.sub(",", DOUBLE_COMMA.sub(",", text))
     # strip(" ,") drops a comma left at either end by a leading or trailing dash
     text = " ".join(text.translate(TYPOGRAPHIC).split()).strip(" ,")
-    # 2. Never let the persona voice a number the caller did not say, or break
-    # character with a stock refusal. Runs after step 1, so apostrophes are straight.
+    # 2. Short enough for one voice request
+    text = cut_to_limit(text)
+    # 3. Never let the persona voice a number the caller did not say, or break character
+    # with a stock refusal. Checked on the CUT text: that is exactly what gets spoken, so
+    # a long reply cannot be cut down to a refusal and slip through.
     if introduces_new_number(text, transcript) or looks_like_refusal(text):
         return SAFE_STALL
-    # 3. Short enough for one voice request
-    return cut_to_limit(text)
+    return text

@@ -1,7 +1,9 @@
 """Tests for the command-line glue."""
 
+import io
 import re
 import socket
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -167,3 +169,40 @@ def test_replay_prints_the_goal_trace(offline: Path, capsys: pytest.CaptureFixtu
 def test_goal_line_names_none_for_no_goal() -> None:
     assert goal_line(3, None) == "turn 3: none"
     assert goal_line(1, Goal.AMOUNT) == "turn 1: amount"
+
+
+class BrokenStdout:
+    """A console that cannot encode anything, like a cp1252 pipe meeting U+2011."""
+
+    def write(self, text: str) -> int:
+        raise UnicodeEncodeError("charmap", text, 0, 1, "character maps to <undefined>")
+
+    def flush(self) -> None:
+        pass
+
+
+def test_report_is_saved_even_if_printing_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(natter_main, "REPORTS", tmp_path)
+    monkeypatch.setattr(sys, "stdout", BrokenStdout())  # has no reconfigure(): skipped
+    with pytest.raises(UnicodeEncodeError):
+        main([])
+    saved = list(tmp_path.glob("*.json"))
+    assert len(saved) == 1
+    Report.model_validate_json(saved[0].read_text(encoding="utf-8"))  # a whole report
+
+
+def test_main_switches_stdout_to_utf8_when_it_can(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[dict[str, str]] = []
+
+    class Console(io.StringIO):
+        def reconfigure(self, **kwargs: str) -> None:
+            calls.append(kwargs)
+
+    monkeypatch.setattr(natter_main, "REPORTS", tmp_path)
+    monkeypatch.setattr(sys, "stdout", Console())
+    main([])
+    assert calls == [{"encoding": "utf-8", "errors": "replace"}]

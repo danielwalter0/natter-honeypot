@@ -6,6 +6,7 @@ cache, with no keys and no network.
 
 import argparse
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -93,8 +94,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     """argv=None reads sys.argv; tests pass a list instead."""
+    # A Windows console or pipe may be cp1252, which cannot print every character a
+    # model writes. UTF-8 with "replace" never raises. Not every stdout has reconfigure().
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
     args = parse_args(argv)
     report, result = build_report(SCENARIO, replay=args.replay)
+    saved = save_report(report, REPORTS)  # saved BEFORE printing, so a print error loses nothing
     for turn in report.turns:
         print(f"[{turn.index}] {turn.speaker}: {turn.text}")
     print(report.dossier.model_dump_json(indent=2))
@@ -108,7 +115,7 @@ def main(argv: list[str] | None = None) -> None:
     persona_turns = [turn.index for turn in result.transcript if turn.speaker == "persona"]
     for turn_index, goal in zip(persona_turns, result.goals, strict=True):
         print(goal_line(turn_index, goal))
-    print(f"Saved: {save_report(report, REPORTS)}")
+    print(f"Saved: {saved}")
 
 
 if __name__ == "__main__":

@@ -311,3 +311,66 @@ def test_prompt_has_the_no_robot_talk_rule() -> None:
     assert "Never mention robots, AI or being real unless he asks you directly." in (SYSTEM_PROMPT)
     assert "If he does, stay vague and chatty and change the subject." in SYSTEM_PROMPT
     assert "act puzzled and amused" not in SYSTEM_PROMPT  # the old rule is folded in
+
+
+# --- refusals are matched at the start, whatever the length; guards run after the cut ---
+
+LONG_TAIL = (
+    " Oh the kettle is going and the cat is on the table and my grandson said the man"
+    " next door has been cutting the hedge all morning love and I never got a wink of sleep"
+)
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "I'm sorry, but I can't help with that. Is there anything else I can help you with today?",
+        "I'm sorry, but I can't help with that." + LONG_TAIL,  # over 200: cut, then caught
+        "I'm sorry, I can't provide that.",
+        "I won't do that",
+        "As an AI language model, I cannot...",
+        "Sorry, but I am unable to continue.",
+        "I'm unable to assist with that request.",
+    ],
+)
+def test_refusal_at_the_start_becomes_the_stall_line(no_guard: None, refusal: str) -> None:
+    assert tidy_reply(refusal, []) == SAFE_STALL
+
+
+def test_long_refusal_is_over_the_limit_before_the_cut() -> None:
+    # Guards the test above: this case only means something if the cut runs first
+    assert len("I'm sorry, but I can't help with that." + LONG_TAIL) > MAX_PERSONA_CHARS
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["Oh I can't help with that cat, she keeps scratching!", "I can't find my glasses, dear"],
+)
+def test_in_character_replies_are_not_refusals(no_guard: None, reply: str) -> None:
+    assert tidy_reply(reply, []) == reply
+
+
+def test_number_past_the_cut_is_not_voiced_so_not_guarded() -> None:
+    # The number guard runs on the cut text: a number the cut removes never reaches the voice
+    text = "Oh dear, the kettle is boiling and the cat wants feeding." + LONG_TAIL + " 4929 1234"
+    out = tidy_reply(text, [])
+    assert out != SAFE_STALL and "4929" not in out
+
+
+# --- one number may be joined by spaces, hyphens, slashes, full stops, commas, underscores ---
+
+
+@pytest.mark.parametrize(
+    ("form", "caller_said"),
+    [
+        ("12/34/56", "12-34-56"),
+        ("12.34.56", "12-34-56"),
+        ("12,34,56", "12-34-56"),
+        ("1_2_3_4", "1-2-3-4"),
+        ("12 34 56", "12-34-56"),
+    ],
+)
+def test_joined_digits_count_as_one_number(form: str, caller_said: str) -> None:
+    reply = f"Is it {form}, love?"
+    assert REAL_GUARD(reply, caller("What is your sort code?")) is True  # never said
+    assert REAL_GUARD(reply, caller(f"The sort code is {caller_said}.")) is False
