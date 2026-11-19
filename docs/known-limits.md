@@ -41,3 +41,4 @@
 - Persona text in Groq assistant messages is not escaped (the owner's builder).
 - The project venv is Python 3.14.5 while the project targets 3.12.
 - Prompt wording cannot be unit-tested, so the re-recorded cassettes are the check.
+- Words glued in the middle ("giveme") cannot be repaired by rules, so the cassettes must be read by eye.

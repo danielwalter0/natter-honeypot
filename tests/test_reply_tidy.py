@@ -1,5 +1,7 @@
 """Tests for the persona reply tidy step and the new-number guard."""
 
+from pathlib import Path
+
 import pytest
 
 from natter.providers import groq_persona
@@ -84,6 +86,32 @@ def test_normal_sentence_gap_is_not_a_seam(no_guard: None) -> None:
     assert tidy_reply(text, []) == text
 
 
+# --- a missing space after , ; ! ? (runs after plain_spaces, before the seam cut) ---
+
+
+@pytest.mark.parametrize(
+    ("raw", "spoken"),
+    [
+        ("Anything else,just say.", "Anything else, just say."),  # comma, any letter
+        ("Yes;that is right.", "Yes; that is right."),  # semicolon, any letter
+        ("Say it again!if you would.", "Say it again! if you would."),  # ! before lowercase
+        ("Really?yes, dear.", "Really? yes, dear."),  # ? before lowercase
+    ],
+)
+def test_space_is_added_after_glued_punctuation(no_guard: None, raw: str, spoken: str) -> None:
+    assert tidy_reply(raw, []) == spoken
+
+
+def test_bang_before_a_capital_is_still_a_seam(no_guard: None) -> None:
+    # ! or ? glued to a capital stays the seam rule's job: the second answer is cut
+    assert tidy_reply("Say it again!If you would.", []) == "Say it again!"
+
+
+@pytest.mark.parametrize("text", ["It was 6,000 pounds.", "Sort code 20-45-17.", "Ref KB-20931."])
+def test_numbers_and_codes_get_no_space(no_guard: None, text: str) -> None:
+    assert tidy_reply(text, []) == text
+
+
 # --- step 1: typographic characters and whitespace ---
 
 
@@ -114,12 +142,12 @@ def test_hyphen_inside_a_word_is_kept(no_guard: None, word: str) -> None:
 @pytest.mark.parametrize(
     ("raw", "spoken"),
     [
-        ("Could you give me a moment?", "Could you give me a moment?"),  # narrow NBSP
-        ("If you would, dear.", "If you would, dear."),  # no-break space
-        ("a b", "a b"),  # thin space
-        ("a　b", "a b"),  # ideographic space
-        ("a​b", "ab"),  # zero-width space
-        ("a‌‍⁠﻿b", "ab"),  # the other zero-width characters
+        ("Could you give\u202fme a moment?", "Could you give me a moment?"),  # narrow NBSP
+        ("If\u00a0you would, dear.", "If you would, dear."),  # no-break space
+        ("a\u2009b", "a b"),  # thin space
+        ("a\u3000b", "a b"),  # ideographic space
+        ("a\u200bb", "a b"),  # zero-width space
+        ("a\u200c\u200d\u2060\ufeffb", "a b"),  # the rest; the run becomes one space
     ],
 )
 def test_unicode_spaces_become_spaces_and_zero_width_goes(
@@ -135,7 +163,7 @@ def test_every_isspace_character_becomes_a_space() -> None:
 
 
 def test_whitespace_is_collapsed(no_guard: None) -> None:
-    assert tidy_reply("  Oh \n\t dear, the   cat.  ", []) == "Oh dear, the cat."
+    assert tidy_reply("  Oh \n\t dear,\u00a0the   cat.  ", []) == "Oh dear, the cat."
 
 
 # --- step 2: a new number is replaced by the fixed stall line ---
@@ -200,3 +228,27 @@ def test_prompt_has_the_variety_rules() -> None:
     assert "If you have already asked for something, do something else this turn." in (
         SYSTEM_PROMPT
     )
+
+
+# --- NATTER_RAW_LOG: the raw reply, before any tidying, for debugging ---
+
+
+def test_raw_log_gets_the_untidied_reply(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, no_guard: None
+) -> None:
+    log = tmp_path / "raw.log"
+    monkeypatch.setenv("NATTER_RAW_LOG", str(log))
+    raw = "Oh dear—the kettle.Sure thing"
+    persona(monkeypatch, raw).reply(caller("hi"), None)
+    persona(monkeypatch, "Second reply.").reply(caller("hi"), None)
+    # One repr line per reply, appended, exactly as the model sent it
+    assert log.read_text(encoding="utf-8").splitlines() == [repr(raw), repr("Second reply.")]
+
+
+def test_no_raw_log_when_unset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, no_guard: None
+) -> None:
+    monkeypatch.delenv("NATTER_RAW_LOG", raising=False)
+    monkeypatch.chdir(tmp_path)  # anything written to a relative path would land here
+    assert persona(monkeypatch, "Hello dear.").reply(caller("hi"), None) == "Hello dear."
+    assert list(tmp_path.iterdir()) == []

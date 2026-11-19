@@ -66,9 +66,10 @@ TYPOGRAPHIC = str.maketrans(
     }
 )
 
-# Zero-width characters: not spaces (isspace() is False), so they are deleted.
-# A translate table that maps a character to None removes it.
-ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿"))
+# Zero-width characters: U+200B space, U+200C non-joiner, U+200D joiner, U+2060 word
+# joiner, U+FEFF no-break space/BOM. isspace() is False for them, so they are mapped to
+# a space here; often they stand where a real space was ("a<U+200B>b" means "a b").
+ZERO_WIDTH = dict.fromkeys((0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF), " ")
 
 # A dash used as a pause is spoken as a comma: an em or en dash (spaced or not), or a
 # hyphen with spaces on both sides. A hyphen inside a word (KB-20931, 20-45-17) is kept.
@@ -76,6 +77,13 @@ DASH_PAUSE = re.compile(r"\s*[–—]\s*|\s+-\s+")
 # Leftovers of that swap: ", ," becomes "," and " ," becomes ","
 DOUBLE_COMMA = re.compile(r",(\s*,)+")
 SPACE_BEFORE_COMMA = re.compile(r"\s+,")
+
+# A missing space after punctuation. , or ; directly before any letter ("else,just"),
+# ! or ? directly before a lowercase letter ("again!if"). ! or ? before a CAPITAL is a
+# seam (below) and is left alone; "." belongs to the seam rule too. Digits are not
+# letters, so "6,000" is untouched.
+GLUED_COMMA = re.compile(r"([,;])(?=[^\W\d_])")  # [^\W\d_] means "a letter"
+GLUED_BANG = re.compile(r"([!?])(?=[a-z])")
 
 # Sentence-ending punctuation glued straight onto a capital letter: "worry.Could"
 GLUED_SEAM = re.compile(r"[.!?](?=[A-Z])")
@@ -107,7 +115,7 @@ def cut_to_limit(text: str) -> str:
 
 
 def plain_spaces(text: str) -> str:
-    """Turn every Unicode space into one ASCII space and delete zero-width characters.
+    """Turn every Unicode space and every zero-width character into an ASCII space.
 
     Runs before any other mapping, so a space such as U+202F in "give me" is never
     lost and the words never run together ("giveme").
@@ -119,8 +127,11 @@ def plain_spaces(text: str) -> str:
 
 def tidy_reply(text: str, transcript: list[Turn]) -> str:
     """Make a model reply safe and speakable. Steps run in this order."""
-    # First: spaces made plain, zero-width characters removed (see plain_spaces)
+    # First: spaces and zero-width characters made plain spaces (see plain_spaces);
+    # step 1 below collapses any run of spaces into one
     text = plain_spaces(text)
+    # Then: a space after , ; ! ? glued to a following letter ("else,just" -> "else, just")
+    text = GLUED_BANG.sub(r"\1 ", GLUED_COMMA.sub(r"\1 ", text))
     # 0. A glued second answer ("worry.Could you...") is dropped at the seam
     seam = GLUED_SEAM.search(text)
     if seam:
@@ -204,5 +215,19 @@ class GroqPersona:
             raise PersonaError("reply has no message")
         if choice.finish_reason != "stop":
             raise PersonaError(f"unexpected finish_reason: {choice.finish_reason}")
+        log_raw_reply(choice.message.content)  # before any checking or tidying
         # checked_reply first: it rejects anything that is not usable text
         return tidy_reply(checked_reply(choice.message.content), transcript)
+
+
+def log_raw_reply(content: object) -> None:
+    """Debug aid: if NATTER_RAW_LOG names a file, append repr(content) as one line.
+
+    repr() keeps the reply on one line and shows hidden characters (U+202F, U+200B).
+    The content is model output only: never the key, never caller audio.
+    """
+    path = os.environ.get("NATTER_RAW_LOG")
+    if not path:
+        return  # unset or empty: do nothing
+    with open(path, "a", encoding="utf-8") as log:
+        log.write(repr(content) + "\n")
