@@ -111,6 +111,16 @@ def test_system_arg_is_exactly_the_system_prompt(
     assert factory.factory_kwargs == {"api_key": "sk-test", "timeout": 30.0, "max_retries": 1}
 
 
+def test_extract_uses_low_effort_and_2000_tokens(
+    monkeypatch: pytest.MonkeyPatch, stub_builder: None
+) -> None:
+    factory = FakeFactory("claude")
+    make(monkeypatch, factory).extract(turns("hello"))
+    call = factory.create_calls[0]
+    assert call["max_tokens"] == 2000
+    assert call["output_config"]["effort"] == "low"
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -247,3 +257,16 @@ def test_valid_and_invalid_dossiers_through_parse_reply() -> None:
     bad["claimed_organisation"]["evidence"]["confidence"] = 1.5  # limit stripped from schema
     with pytest.raises(ExtractionError):
         parse_reply(claude_response(json.dumps(bad)))  # type: ignore[arg-type]
+
+
+# --- the limits stripped from the schema are stated in the prompt instead ---
+
+
+def test_prompt_states_the_limits_read_from_the_schema() -> None:
+    # Read the numbers from the schema, so a schema change makes this test fail
+    defs = Dossier.model_json_schema()["$defs"]
+    quote = defs["Evidence"]["properties"]["quote"]
+    rationale = defs["Judgement"]["properties"]["rationale"]
+    assert rationale["maxLength"] == 200
+    assert f"rationale: at most {rationale['maxLength']} characters" in SYSTEM_PROMPT
+    assert f"quote: {quote['minLength']} to {quote['maxLength']} characters" in SYSTEM_PROMPT
