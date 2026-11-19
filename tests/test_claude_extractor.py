@@ -1,5 +1,7 @@
+import copy
 import json
 import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -7,9 +9,11 @@ import pytest
 from natter.providers import claude_extractor
 from natter.providers.claude_extractor import (
     SYSTEM_PROMPT,
+    UNSUPPORTED_KEYWORDS,
     ClaudeExtractor,
     build_user_message,
     parse_reply,
+    sanitise_schema,
 )
 from natter.providers.errors import ExtractionError, MissingKeyError
 from natter.schema import Dossier, Turn
@@ -186,3 +190,60 @@ def test_deeply_nested_reply_fails_closed() -> None:
 
 def test_system_prompt_explains_escape_codes() -> None:
     assert "&lt; &gt; and &amp; stand for the characters < > and &" in SYSTEM_PROMPT
+
+
+# --- schema sent to the API: unsupported keywords stripped, our check unchanged ---
+
+EXPECTED = Path(__file__).parent.parent / "scenarios" / "bank-fraud-01" / "expected.json"
+
+
+def keywords_in(schema: object) -> set[str]:
+    """Every dict key anywhere in the schema, excluding the names under properties/$defs."""
+    if isinstance(schema, list):
+        return set().union(*(keywords_in(item) for item in schema))
+    if not isinstance(schema, dict):
+        return set()
+    found: set[str] = set()
+    for key, value in schema.items():
+        found.add(key)
+        if key in ("properties", "$defs"):
+            found |= set().union(*(keywords_in(sub) for sub in value.values()))
+        else:
+            found |= keywords_in(value)
+    return found
+
+
+def test_original_schema_has_the_keywords_we_strip() -> None:
+    # Guards the next test: it would pass trivially if the schema had none
+    assert {"minimum", "maximum", "exclusiveMinimum", "minLength", "maxLength"} <= keywords_in(
+        Dossier.model_json_schema()
+    )
+
+
+def test_sanitised_schema_has_no_unsupported_keywords() -> None:
+    assert not keywords_in(claude_extractor.DOSSIER_SCHEMA) & UNSUPPORTED_KEYWORDS
+    assert "pattern" in json.dumps(claude_extractor.DOSSIER_SCHEMA)  # supported, so kept
+
+
+def test_sanitise_does_not_mutate_its_input() -> None:
+    original = Dossier.model_json_schema()
+    before = copy.deepcopy(original)
+    sanitise_schema(original)
+    assert original == before
+
+
+def test_sanitise_keeps_field_names_that_look_like_keywords() -> None:
+    schema = {"type": "object", "properties": {"minimum": {"type": "integer", "minimum": 0}}}
+    assert sanitise_schema(schema) == {
+        "type": "object",
+        "properties": {"minimum": {"type": "integer"}},
+    }
+
+
+def test_valid_and_invalid_dossiers_through_parse_reply() -> None:
+    text = EXPECTED.read_text(encoding="utf-8")
+    assert parse_reply(claude_response(text)) == Dossier.model_validate_json(text)  # type: ignore[arg-type]
+    bad = Dossier.model_validate_json(text).model_dump(mode="json")
+    bad["claimed_organisation"]["evidence"]["confidence"] = 1.5  # limit stripped from schema
+    with pytest.raises(ExtractionError):
+        parse_reply(claude_response(json.dumps(bad)))  # type: ignore[arg-type]

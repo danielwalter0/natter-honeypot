@@ -3,6 +3,7 @@
 import html
 import os
 from collections.abc import Callable
+from typing import Any
 
 import anthropic
 import pydantic
@@ -26,8 +27,51 @@ SYSTEM_PROMPT = (
     "- Output JSON only, matching the given schema."
 )
 
+# JSON Schema keywords the structured-output API rejects with a 400
+# (docs: platform.claude.com/docs/en/build-with-claude/structured-outputs, 2026-11-19).
+# minItems is allowed only as 0 or 1; our schema has none, so it is not handled here.
+UNSUPPORTED_KEYWORDS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "maxItems",
+    }
+)
+
+
+def sanitise_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Return a deep copy of a JSON schema with UNSUPPORTED_KEYWORDS removed everywhere.
+
+    The input is never changed. Keys of "properties" and "$defs" are field and
+    type NAMES, not keywords, so they are kept even if one is called "minimum".
+    The stripped limits are still enforced by Dossier.model_validate_json(strict=True).
+    """
+    result: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key in ("properties", "$defs") and isinstance(value, dict):
+            # A map of name -> sub-schema: keep every name, clean each sub-schema
+            result[key] = {name: _clean(sub) for name, sub in value.items()}
+        elif key not in UNSUPPORTED_KEYWORDS:
+            result[key] = _clean(value)
+    return result
+
+
+def _clean(value: object) -> object:
+    """Copy one value inside a schema, sanitising any nested schema objects."""
+    if isinstance(value, dict):
+        return sanitise_schema(value)
+    if isinstance(value, list):
+        return [_clean(item) for item in value]
+    return value  # strings, numbers, booleans, None are immutable, so no copy needed
+
+
 # Built once from the report schema; sent so the API constrains the reply shape
-DOSSIER_SCHEMA = Dossier.model_json_schema()
+DOSSIER_SCHEMA = sanitise_schema(Dossier.model_json_schema())
 
 
 def build_user_message(transcript: list[Turn]) -> str:
