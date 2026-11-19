@@ -10,6 +10,7 @@ from natter.providers.groq_persona import (
     SAFE_STALL,
     SYSTEM_PROMPT,
     GroqPersona,
+    looks_like_refusal,
     plain_spaces,
     tidy_reply,
 )
@@ -116,18 +117,18 @@ def test_numbers_and_codes_get_no_space(no_guard: None, text: str) -> None:
 
 
 def test_typographic_punctuation_becomes_ascii(no_guard: None) -> None:
-    raw = "It’s fine — don’t worry “dear” – the kettle…"
+    raw = "It\u2019s fine \u2014 don\u2019t worry \u201cdear\u201d \u2013 the kettle\u2026"
     assert tidy_reply(raw, []) == "It's fine, don't worry \"dear\", the kettle..."
 
 
 @pytest.mark.parametrize(
     ("raw", "spoken"),
     [
-        ("kettle—tiny chaos", "kettle, tiny chaos"),  # em dash
-        ("kettle – tiny chaos", "kettle, tiny chaos"),  # spaced en dash
+        ("kettle\u2014tiny chaos", "kettle, tiny chaos"),  # em dash
+        ("kettle \u2013 tiny chaos", "kettle, tiny chaos"),  # spaced en dash
         ("kettle - tiny chaos", "kettle, tiny chaos"),  # spaced hyphen
-        ("Oh, — well", "Oh, well"),  # no ", ," left behind
-        ("kettle —, tiny", "kettle, tiny"),  # no " ," left behind
+        ("Oh, \u2014 well", "Oh, well"),  # no ", ," left behind
+        ("kettle \u2014, tiny", "kettle, tiny"),  # no " ," left behind
     ],
 )
 def test_dash_pause_becomes_a_comma(no_guard: None, raw: str, spoken: str) -> None:
@@ -212,7 +213,7 @@ def persona(monkeypatch: pytest.MonkeyPatch, text: str) -> GroqPersona:
 
 
 def test_reply_is_tidied(monkeypatch: pytest.MonkeyPatch, no_guard: None) -> None:
-    raw = "Oh, I’m not sure.Sure thing, here it is."
+    raw = "Oh, I\u2019m not sure.Sure thing, here it is."
     assert persona(monkeypatch, raw).reply(caller("hi"), None) == "Oh, I'm not sure."
 
 
@@ -238,7 +239,7 @@ def test_raw_log_gets_the_untidied_reply(
 ) -> None:
     log = tmp_path / "raw.log"
     monkeypatch.setenv("NATTER_RAW_LOG", str(log))
-    raw = "Oh dear—the kettle.Sure thing"
+    raw = "Oh\u202fdear\u2014the kettle.Sure thing"
     persona(monkeypatch, raw).reply(caller("hi"), None)
     persona(monkeypatch, "Second reply.").reply(caller("hi"), None)
     # One repr line per reply, appended, exactly as the model sent it
@@ -252,3 +253,62 @@ def test_no_raw_log_when_unset(
     monkeypatch.chdir(tmp_path)  # anything written to a relative path would land here
     assert persona(monkeypatch, "Hello dear.").reply(caller("hi"), None) == "Hello dear."
     assert list(tmp_path.iterdir()) == []
+
+
+# --- regressions from spike_out/raw_replies.txt (\u escapes, no invisible characters) ---
+
+RAW_LET_ME_SEE = (
+    "Sure, I\u2019ll stay put, mum's about the new kettle. I\u2019ll keep this between us, "
+    "not even tell the neighbour. Let me see\u2026 could you repeat the code? "
+    "I\u2019m sure I misheard."
+)
+RAW_GRANDSON = (
+    "Ah, that\u2019s helpful! Please give me a number to ring you back on \u2013 just in case "
+    "I need to double\u2011check with my grandson. I\u2019ll be on the line till you\u2019re done."
+)
+
+
+def test_ellipsis_then_space_keeps_the_space(no_guard: None) -> None:
+    assert "Let me see... could you repeat the code?" in tidy_reply(RAW_LET_ME_SEE, [])
+
+
+def test_full_stop_then_curly_apostrophe_keeps_the_space(no_guard: None) -> None:
+    out = tidy_reply(RAW_GRANDSON, [])
+    assert "my grandson. I'll be on the line" in out
+    assert "double-check" in out  # U+2011 non-breaking hyphen becomes "-"
+
+
+# --- stock refusals are replaced by the stall line ---
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "I'm sorry, but I can't help with that.",
+        "I\u2019m sorry, but I can\u2019t help with that.",  # curly apostrophes, as sent
+        "I am sorry, but I cannot do that.",
+        "I can't comply with that request.",
+    ],
+)
+def test_stock_refusal_becomes_the_stall_line(no_guard: None, refusal: str) -> None:
+    assert looks_like_refusal(refusal.replace("\u2019", "'"))
+    assert tidy_reply(refusal, []) == SAFE_STALL
+
+
+def test_in_character_cannot_is_not_a_refusal(no_guard: None) -> None:
+    assert tidy_reply("I can't find my glasses, dear", []) == "I can't find my glasses, dear"
+
+
+def test_long_in_character_reply_with_the_phrase_is_kept(no_guard: None) -> None:
+    long = (
+        "Oh, my grandson always says the bank can't help with that sort of thing, "
+        "but let me find my glasses and have a look for the letter, dear."
+    )
+    assert len(long) >= 80
+    assert tidy_reply(long, []) == long
+
+
+def test_prompt_has_the_no_robot_talk_rule() -> None:
+    assert "Never mention robots, AI or being real unless he asks you directly." in (SYSTEM_PROMPT)
+    assert "If he does, stay vague and chatty and change the subject." in SYSTEM_PROMPT
+    assert "act puzzled and amused" not in SYSTEM_PROMPT  # the old rule is folded in
