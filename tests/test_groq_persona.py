@@ -71,6 +71,7 @@ def test_mixed_transcript_roles_and_wrapping() -> None:
 def persona_with(monkeypatch: pytest.MonkeyPatch, reply: object) -> GroqPersona:
     # Test-local stand-in so these tests do not depend on the owner's builder
     monkeypatch.setattr(groq_persona, "build_messages", lambda t, g: [{"role": "system"}])
+    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
     monkeypatch.setenv("GROQ_API_KEY", "sk-test")
     return GroqPersona(client_factory=FakeFactory("groq", reply))
 
@@ -100,6 +101,7 @@ def test_unusable_response_raises_persona_error(
 def test_reply_calls_sdk_with_expected_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
     # Test-local stand-in so this test does not depend on the owner's builder
     monkeypatch.setattr(groq_persona, "build_messages", lambda t, g: [{"role": "system"}])
+    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
     monkeypatch.setenv("GROQ_API_KEY", "sk-test")
     factory = FakeFactory("groq", groq_response("Hello dear."))
     assert GroqPersona(client_factory=factory).reply(turns("hi"), None) == "Hello dear."

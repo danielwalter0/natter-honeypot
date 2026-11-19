@@ -25,6 +25,7 @@ def stub_builders(monkeypatch: pytest.MonkeyPatch) -> None:
     # Test-local stand-ins so these tests do not depend on the owner's builders
     monkeypatch.setattr(claude_extractor, "build_user_message", lambda t: "stub")
     monkeypatch.setattr(groq_persona, "build_messages", lambda t, g: [{"role": "system"}])
+    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
 
 
 def assert_no_leak(provider: object, folder: Path) -> None:

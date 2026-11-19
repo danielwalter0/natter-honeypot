@@ -40,6 +40,7 @@ def test_recorded_cache_replays_without_keys(
     # Test-local stand-ins so this test does not depend on the owner's builders
     monkeypatch.setattr(claude_extractor, "build_user_message", lambda t: "stub")
     monkeypatch.setattr(groq_persona, "build_messages", lambda t, g: [{"role": "system"}])
+    monkeypatch.setattr(groq_persona, "introduces_new_number", lambda r, t: False)
     monkeypatch.setenv("GROQ_API_KEY", "sk-test")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     record = Cache(tmp_path, "record")
