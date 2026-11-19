@@ -88,7 +88,26 @@ def test_normal_sentence_gap_is_not_a_seam(no_guard: None) -> None:
 
 def test_typographic_punctuation_becomes_ascii(no_guard: None) -> None:
     raw = "It’s fine — don’t worry “dear” – the kettle…"
-    assert tidy_reply(raw, []) == "It's fine - don't worry \"dear\" - the kettle..."
+    assert tidy_reply(raw, []) == "It's fine, don't worry \"dear\", the kettle..."
+
+
+@pytest.mark.parametrize(
+    ("raw", "spoken"),
+    [
+        ("kettle—tiny chaos", "kettle, tiny chaos"),  # em dash
+        ("kettle – tiny chaos", "kettle, tiny chaos"),  # spaced en dash
+        ("kettle - tiny chaos", "kettle, tiny chaos"),  # spaced hyphen
+        ("Oh, — well", "Oh, well"),  # no ", ," left behind
+        ("kettle —, tiny", "kettle, tiny"),  # no " ," left behind
+    ],
+)
+def test_dash_pause_becomes_a_comma(no_guard: None, raw: str, spoken: str) -> None:
+    assert tidy_reply(raw, []) == spoken
+
+
+@pytest.mark.parametrize("word", ["KB-20931", "20-45-17", "well-known"])
+def test_hyphen_inside_a_word_is_kept(no_guard: None, word: str) -> None:
+    assert tidy_reply(f"It was {word}, dear.", []) == f"It was {word}, dear."
 
 
 def test_whitespace_is_collapsed(no_guard: None) -> None:

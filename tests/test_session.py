@@ -306,3 +306,18 @@ def test_persona_sees_the_newest_scammer_line() -> None:
     assert [len(seen) for seen, _ in persona.calls] == [1, 3, 5]
     assert [seen[-1].text for seen, _ in persona.calls] == LINES
     assert all(seen[-1].speaker == "scammer" for seen, _ in persona.calls)
+
+
+def test_each_rejection_records_its_scammer_turn() -> None:
+    """rejection_turns[i] is the scammer turn whose extraction dropped rejections[i]."""
+    bad = Evidence(turn=0, quote="not in the turn", confidence=0.9)
+    proposal = Dossier(
+        identifiers=[
+            Identifier(kind=IdentifierKind.ALIAS, value="A", evidence=bad),
+            Identifier(kind=IdentifierKind.ALIAS, value="B", evidence=bad),
+        ]
+    )
+    # The same bad proposal on all three scammer turns (indexes 0, 2, 4): two drops each
+    result = run_session(LINES, RecordingPersona(), ScriptedExtractor([proposal]), 100)
+    assert len(result.rejection_turns) == len(result.rejections) == 6
+    assert result.rejection_turns == [0, 0, 2, 2, 4, 4]

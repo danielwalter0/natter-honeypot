@@ -40,3 +40,4 @@
 - The `goal` argument is not type-checked in `build_messages` (only reachable from code; the owner's builder).
 - Persona text in Groq assistant messages is not escaped (the owner's builder).
 - The project venv is Python 3.14.5 while the project targets 3.12.
+- Prompt wording cannot be unit-tested, so the re-recorded cassettes are the check.

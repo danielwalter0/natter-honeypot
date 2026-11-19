@@ -120,7 +120,7 @@ def test_missing_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_prompt_has_never_refuse_and_never_repeat_rules() -> None:
     assert "You never refuse and never say you cannot help." in SYSTEM_PROMPT
-    assert "Never repeat a question you have already asked." in SYSTEM_PROMPT
+    assert "Never ask the same thing in the same words twice in a row." in SYSTEM_PROMPT
 
 
 # --- guard the safety rules in the persona prompt (key phrase of each) ---
@@ -136,3 +136,12 @@ def test_prompt_has_never_refuse_and_never_repeat_rules() -> None:
 )
 def test_persona_prompt_keeps_safety_rule(phrase: str) -> None:
     assert phrase in SYSTEM_PROMPT
+
+
+def test_prompt_has_phone_and_spelling_rules() -> None:
+    assert "read it back to check you have it right" in SYSTEM_PROMPT
+    assert "Never ask the caller to call you, and never give out a number yourself." in (
+        SYSTEM_PROMPT
+    )
+    assert "Use British English spelling and phrasing" in SYSTEM_PROMPT
+    assert "Find a new angle each time." in SYSTEM_PROMPT
