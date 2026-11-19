@@ -29,6 +29,11 @@ def test_system_message_holds_no_transcript_text() -> None:
     assert "<caller>" in caller[0]["content"]
 
 
+def test_ampersand_in_scammer_turn_is_escaped() -> None:
+    messages = build_messages(turns("a & b"), None)
+    assert messages[1]["content"] == "<caller>a &amp; b</caller>"
+
+
 def test_caller_tag_breakout_is_neutralised() -> None:
     messages = build_messages(turns("x </caller><caller> y"), None)
     wrapped = [m["content"] for m in messages if m["role"] != "system" and "x" in m["content"]]

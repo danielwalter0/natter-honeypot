@@ -64,7 +64,8 @@ class GroqPersona:
         model: str = DEFAULT_MODEL,
         client_factory: Callable[..., groq.Groq] = groq.Groq,
     ) -> None:
-        # The only place the key is read; it is passed on and never stored
+        # The only place the key is read. We never store it ourselves;
+        # the SDK client keeps it internally (self.client.api_key)
         key = os.environ.get("GROQ_API_KEY")
         if not key:
             raise MissingKeyError("GROQ_API_KEY is not set")

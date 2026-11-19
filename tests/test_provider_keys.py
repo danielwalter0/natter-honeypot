@@ -1,3 +1,4 @@
+import traceback
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,9 @@ def exc_texts(exc: BaseException | None) -> list[str]:
 
 def assert_sentinel_absent(exc: BaseException) -> None:
     assert not any(SENTINEL in t for t in exc_texts(exc))
+    # The full printed traceback: covers chained exceptions and add_note() notes,
+    # which is what would end up in a log
+    assert SENTINEL not in "".join(traceback.format_exception(exc))
 
 
 def offline_groq(**kwargs: Any) -> groq.Groq:

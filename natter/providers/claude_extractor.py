@@ -59,8 +59,9 @@ def parse_reply(response: anthropic.types.Message) -> Dossier:
     try:
         # strict=True: no coercion, so "turn": true or "turn": "1" is rejected
         return Dossier.model_validate_json(texts[0], strict=True)
-    # ValueError covers bad JSON; RecursionError covers absurdly nested JSON
-    except (pydantic.ValidationError, ValueError, RecursionError) as err:
+    # pydantic reports bad JSON, too-deep nesting and schema errors as ValidationError
+    # (a ValueError subclass); ValueError also catches anything else the parser raises
+    except (pydantic.ValidationError, ValueError) as err:
         raise ExtractionError("reply is not a valid dossier") from err
 
 
@@ -72,7 +73,8 @@ class ClaudeExtractor:
         model: str = DEFAULT_MODEL,
         client_factory: Callable[..., anthropic.Anthropic] = anthropic.Anthropic,
     ) -> None:
-        # The only place the key is read; it is passed on and never stored
+        # The only place the key is read. We never store it ourselves;
+        # the SDK client keeps it internally (self.client.api_key)
         key = os.environ.get("ANTHROPIC_API_KEY")
         if not key:
             raise MissingKeyError("ANTHROPIC_API_KEY is not set")
