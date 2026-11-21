@@ -6,10 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "natter"
 version = "0.0.1"
 requires-python = ">=3.12"
-dependencies = ["pydantic==2.14.3", "groq==1.7.0", "anthropic==2.4.0"]
+dependencies = [
+    "pydantic==2.14.3",
+    "groq==1.7.0",
+    "anthropic==2.4.0",
+    "fastapi==0.165.0",  # web page server (slice 7)
+    "uvicorn==0.54.0",  # runs the FastAPI app on localhost
+]
 
 [project.optional-dependencies]
-dev = ["pytest==9.2.0", "ruff==0.17.5", "mypy==2.4.1"]
+dev = ["pytest==9.2.0", "ruff==0.17.5", "mypy==2.4.1", "httpx==0.28.1"]  # httpx: FastAPI TestClient
 
 [tool.setuptools]
 packages = ["natter", "natter.providers"]

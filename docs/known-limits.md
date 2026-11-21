@@ -82,3 +82,9 @@
 - The live audio is never played or saved by the terminal loop (`live_cli.py`); only its size is printed. WAVs exist only in the speech cache under `live_cache/`.
 - A scammer line that is the literal text `quit` ends the terminal loop instead of being sent.
 - `python -m natter.live` runs `live.py` as `__main__` and imports `live_cli`, which imports `natter.live` again as a normal module, so the module is loaded twice. This is harmless (the loop uses the second copy) but would surprise anyone adding module-level state to `live.py`.
+
+## Web page (`natter/web.py`, slice 7)
+
+- No daily spend cap (`NATTER_DAILY_SPEND_CAP_USD` is not built). `python -m natter.web --live` prints a warning at start. Each server start, and each reset, gets a fresh `LiveCall` with its own per-call caps (40 turns, 20 extractions, 15 speech requests, 600 s), so restarting the server resets the spend limits.
+- One call per server process: two browser tabs share and drive the same call. A turn, a step and a reset share one lock; a second request while one runs gets 409, it is not queued.
+- Request bodies have no overall size cap (SPEC says 64 KB). `line` is limited to 2000 characters, but FastAPI reads and parses the whole body first. Local only, so low risk; a Content-Length check is a later fix.
