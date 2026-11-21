@@ -288,7 +288,7 @@ async function sendLine(line) {
   pauseListening();
   const turn = runTurn("/api/say", { line: line });
   // The turn has started but is not waited for yet, so a filler can play meanwhile
-  const fillers = playFillers(turn);
+  const fillers = playFillers();
   const ok = await turn;
   playReplyThenListen(ok, fillers); // not awaited: the typed box can be cleared at once
   return ok;
@@ -310,19 +310,13 @@ function pickFiller() {
   return fillerClips[i];
 }
 
-// ---- Play filler while the turn runs: one straight away, and one more only if
-// the reply is still not ready when the first one ends. Never more than two.
+// ---- Play ONE filler straight away while the turn runs, then wait for it to end.
+// Never a second one, however long the reply takes.
 // With no filler clips this does nothing, so the page works as it did before.
-async function playFillers(turn) {
-  let replyReady = false;
-  turn.then(() => {
-    replyReady = true; // runTurn never fails outright, so this always happens
-  });
-  for (let played = 0; played < 2; played++) {
-    if (fillerClips.length === 0 || (played > 0 && replyReady)) return;
-    if (!(await playClip(pickFiller()))) return; // could not play: give up on filler
-    await clipStopped();
-  }
+async function playFillers() {
+  if (fillerClips.length === 0) return;
+  if (!(await playClip(pickFiller()))) return; // could not play: no filler this time
+  await clipStopped();
 }
 
 // ---- Play the new reply, for typed and heard lines alike, then listen again

@@ -153,3 +153,17 @@ def test_bad_int_caps_raise(bad: object) -> None:
 def test_bad_max_seconds_raises(bad: object) -> None:
     with pytest.raises(ValueError):
         make_call(max_seconds=bad)
+
+
+def test_say_records_whole_millisecond_timings_per_stage() -> None:
+    call = make_call()
+    call.say(LINES[0])
+    assert list(call.last_timings) == ["extraction_ms", "persona_ms", "speech_ms", "total_ms"]
+    assert all(isinstance(ms, int) and ms >= 0 for ms in call.last_timings.values())
+
+
+def test_a_rejected_line_times_no_stage() -> None:
+    call = make_call()
+    call.say("   ")  # rejected before any provider is called
+    timings = call.last_timings
+    assert timings["extraction_ms"] == timings["persona_ms"] == timings["speech_ms"] == 0

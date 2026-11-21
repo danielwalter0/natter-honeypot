@@ -11,6 +11,16 @@ from natter.providers.base import Speech
 
 MAX_WAV_BYTES = 1_000_000  # per file
 MAX_FOLDER_BYTES = 8_000_000  # per scenario audio folder
+# Committed audio lives under these folder names; nothing in them is ever deleted
+PROTECTED_NAMES = {"scenarios", "assets"}
+
+
+class AudioNotSaved(Exception):
+    """Good audio was made (and paid for) but could not be stored. Carries the audio."""
+
+    def __init__(self, audio: bytes, reason: str) -> None:
+        super().__init__(f"audio not saved: {reason}")
+        self.audio = audio
 
 
 def is_wav(data: bytes) -> bool:
@@ -20,14 +30,33 @@ def is_wav(data: bytes) -> bool:
     )
 
 
-class AudioCache:
-    """A folder of WAV files named by key. File names come from the hash only."""
+def check_audio(data: bytes) -> None:
+    """Raise ValueError unless data is a WAV within the per-file size cap."""
+    if not is_wav(data):
+        raise ValueError("audio is not a WAV")
+    if len(data) > MAX_WAV_BYTES:
+        raise ValueError("audio is too big")
 
-    def __init__(self, folder: Path, mode: Literal["replay", "record"]) -> None:
+
+class AudioCache:
+    """A folder of WAV files named by key. File names come from the hash only.
+
+    evict_oldest=True (the live cache only): when a new file would go over the folder
+    cap, the oldest WAVs (by modified time) are deleted until it fits. Refused for any
+    folder under scenarios/ or assets/, whose audio is committed evaluation or asset data.
+    """
+
+    def __init__(
+        self, folder: Path, mode: Literal["replay", "record"], evict_oldest: bool = False
+    ) -> None:
         if mode not in ("replay", "record"):
             raise ValueError(f"unknown cache mode: {mode!r}")
+        # resolve() first, so "live/../scenarios/x" is caught too
+        if evict_oldest and PROTECTED_NAMES & set(folder.resolve().parts):
+            raise ValueError("never evict audio under scenarios/ or assets/")
         self.folder = folder
         self.mode = mode
+        self.evict_oldest = evict_oldest
 
     def path_for(self, key: str) -> Path:
         """Return folder / f"{key}.wav". A key that is not 64 lowercase hex chars raises."""
@@ -59,12 +88,17 @@ class AudioCache:
     def store(self, key: str, data: bytes) -> None:
         """Validate, then write atomically. Nothing is written if a check fails."""
         path = self.path_for(key)
-        if not is_wav(data):
-            raise ValueError("audio is not a WAV")
-        if len(data) > MAX_WAV_BYTES:
-            raise ValueError("audio is too big")
+        check_audio(data)
         # Existing .wav files count, except the one this key would replace
-        used = sum(f.stat().st_size for f in self.folder.glob("*.wav") if f != path)
+        others = [f for f in self.folder.glob("*.wav") if f != path]
+        used = sum(f.stat().st_size for f in others)
+        if used + len(data) > MAX_FOLDER_BYTES and self.evict_oldest:
+            # Oldest first: delete one at a time until the new file fits
+            for old in sorted(others, key=lambda f: f.stat().st_mtime):
+                if used + len(data) <= MAX_FOLDER_BYTES:
+                    break
+                used -= old.stat().st_size
+                old.unlink()
         if used + len(data) > MAX_FOLDER_BYTES:
             raise ValueError("audio folder is full")
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -96,5 +130,12 @@ class CachedSpeech:
             if self.cache.mode != "record":
                 raise
         data = self.inner.speak(text)
-        self.cache.store(key, data)  # store validates the bytes
+        check_audio(data)  # bad audio is never used, whether it could be saved or not
+        try:
+            self.cache.store(key, data)
+        except (ValueError, OSError) as exc:
+            # The audio is good and already paid for, so hand it back with the error.
+            # Our ValueErrors carry messages we wrote; an OSError's text names paths.
+            reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+            raise AudioNotSaved(data, reason) from None
         return data

@@ -179,17 +179,18 @@ def test_filler_clips_come_from_the_mode_answer() -> None:
 def test_filler_starts_with_the_turn_and_the_reply_waits_for_it() -> None:
     js = read("app.js")
     send = function_body(js, "sendLine")
-    assert "const fillers = playFillers(turn);" in send  # started before the turn is awaited
-    assert send.index("playFillers(turn)") < send.index("await turn")
+    assert "const fillers = playFillers();" in send  # started before the turn is awaited
+    assert send.index("playFillers()") < send.index("await turn")
     after = function_body(js, "playReplyThenListen")
     assert after.index("await fillers;") < after.index("playClip(latestAudio)")
 
 
-def test_at_most_two_fillers_and_none_without_clips() -> None:
+def test_one_filler_per_line_and_none_without_clips() -> None:
     body = function_body(read("app.js"), "playFillers")
-    assert "for (let played = 0; played < 2; played++) {" in body
-    assert "if (fillerClips.length === 0 || (played > 0 && replyReady)) return;" in body
-    assert "await clipStopped();" in body  # listening stays paused until each clip ends
+    assert "if (fillerClips.length === 0) return;" in body
+    assert body.count("playClip(") == 1  # one filler, never a second
+    assert "for (" not in body and "while (" not in body  # no loop that could play more
+    assert "await clipStopped();" in body  # listening stays paused until the clip ends
 
 
 def test_filler_is_never_the_same_as_the_last_one() -> None:
