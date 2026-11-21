@@ -96,7 +96,7 @@ class LiveCall:
         self.state = SessionState()
         self.extractions_used = 0
         self.ended = False
-        self.started = clock()
+        self.started: float | None = None  # set by the first say(), not here
         self._lock = threading.Lock()  # one say() at a time
 
     def _reply(
@@ -149,6 +149,9 @@ class LiveCall:
         if len(self.state.transcript) >= self.max_turns:
             self.ended = True
             return self._reply(None, None, ["call ended: turn cap"])
+        # The call's clock starts at the first line, so an idle server never eats the time
+        if self.started is None:
+            self.started = self.clock()
         if self.clock() - self.started >= self.max_seconds:
             self.ended = True
             return self._reply(None, None, ["call ended: time cap"])

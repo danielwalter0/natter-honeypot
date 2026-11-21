@@ -122,13 +122,23 @@ def test_time_cap_ends_call() -> None:
 
 
 def test_time_cap_boundary() -> None:
-    """Exactly started + max_seconds ends the call; just below does not."""
+    """Exactly first say + max_seconds ends the call; just below does not."""
     now = [100.0]
     call = make_call(max_seconds=10, clock=lambda: now[0])
+    assert not call.say(LINES[0]).ended  # the clock starts here, at 100
     now[0] = 109.999
-    assert not call.say(LINES[0]).ended
+    assert not call.say(LINES[1]).ended
     now[0] = 110.0
-    assert call.say(LINES[1]).ended
+    assert call.say(LINES[2]).ended
+
+
+def test_time_cap_clock_starts_at_the_first_say_not_at_build() -> None:
+    """A call built long before anyone speaks still gets its full time."""
+    now = [0.0]
+    call = make_call(max_seconds=10, clock=lambda: now[0])
+    now[0] = 1000.0  # the server sat idle for a long time
+    first = call.say(LINES[0])
+    assert not first.ended and first.text is not None
 
 
 @pytest.mark.parametrize("bad", [-1, True, 1.5, "3", None])
