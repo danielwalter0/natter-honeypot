@@ -69,3 +69,16 @@
 - Errors from our own code (ValueError, SpeechError, MissingKeyError, CacheMiss) show their message. SDK errors are reported by type and status only, so the Groq error message is not shown. The owner reads it in the Groq console.
 - The recorder treats a truncated or non-WAV file as missing and re-records it, overwriting the bad file.
 - No 15 s per-clip duration check (SPEC.md asks for 15 s and 1 MB per turn). The owner accepted this: at 24 kHz mono 16-bit, 1 MB is about 21 s, and the 1 MB cap bounds it in practice.
+
+## Live loop (`live.py`)
+
+- The time cap is checked only when a line arrives. A `say()` that starts just under 600 s can still run an extraction (up to about 60 s worst case: 30 s timeout x 2 tries), the persona and the 7 s speech throttle, so a call can end around 670 s.
+- "`say()` never raises" covers `Exception` only. A `BaseException` such as `KeyboardInterrupt` in the middle of a turn leaves a scammer turn with no reply.
+- No daily speech or spend cap yet (`NATTER_DAILY_SPEND_CAP_USD` is not built). Every new `LiveCall` gets a fresh 15 speech requests and 20 extractions.
+- With an odd turn cap the last scammer line still costs one paid extraction but gets no reply (same as `run_session`).
+- `LiveCall` strips leading and trailing spaces from each line and `run_session` does not, so the two transcripts differ for padded lines.
+- The lock around `say()` is untested (removing it passes every test).
+- If the live audio folder (`live_cache/audio`) reaches `AudioCache`'s 8 MB cap, the real speech request is still made (and counts against the quota), then `store` raises "audio folder is full". The reply loses its audio and carries a "speech failed" note. Each later new line does the same, so delete old WAVs from `live_cache/audio` to carry on.
+- The live audio is never played or saved by the terminal loop (`live_cli.py`); only its size is printed. WAVs exist only in the speech cache under `live_cache/`.
+- A scammer line that is the literal text `quit` ends the terminal loop instead of being sent.
+- `python -m natter.live` runs `live.py` as `__main__` and imports `live_cli`, which imports `natter.live` again as a normal module, so the module is loaded twice. This is harmless (the loop uses the second copy) but would surprise anyone adding module-level state to `live.py`.

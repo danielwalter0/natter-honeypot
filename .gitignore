@@ -17,3 +17,6 @@ spike_out/
 
 # Half-written audio
 *.wav.tmp
+
+# Audio kept from live calls
+live_cache/
