@@ -99,3 +99,14 @@
 - `build_frame` spots a stall, a failed extraction and a hit extraction cap by matching the start of `LiveCall`'s notes ("persona failed", "extraction failed", "extraction cap"). Rewording those notes in `live.py` breaks this silently in code, though the web_view tests would fail.
 - Test gaps: the replay parity test does not compare rejections or rejection turns (the recorded call has none), and no `build_frame` test runs the "does not repeat herself" goal branch end to end (the reviewer checked it by hand on fakes).
 - The call's 600 s clock starts at its first line, not when the call is built, so a server left idle keeps the full time. Reset builds a new call, whose clock starts at its own first line.
+
+## Voice input (`app.js`, live mode)
+
+- Chrome and Edge only (the browser's `webkitSpeechRecognition`). Other browsers hide the voice buttons and show "Voice input needs Chrome or Edge."; the typed box still works.
+- The microphone audio goes to the browser vendor's speech service (Google for Chrome, Microsoft for Edge), not to Natter. Only the recognised text reaches our server. Use simulated scam lines only, never a real person's voice.
+- Listening is paused while a turn runs and while the reply plays, but the microphone still picks up speaker output, for example a Play click on an old bubble during a call, or the tail of a clip. Use headphones.
+- Recognition errors: silence (`no-speech`) just listens again. Any other error (microphone blocked, no network, no microphone) ends the voice call with a status line naming the browser's error code; press Start call again or type the line.
+- Recognition mistakes are sent as heard. A misheard line is a real scammer turn: it costs an extraction and is in the transcript. There is no "check before sending" step.
+- Each final result is one turn, so a long sentence with a pause in it can arrive as two turns.
+- Audio plays on its own only after the Start call click (the browser's sound rule). If `play()` still fails, the page says "Could not play the audio." and listens again straight away.
+- The voice code is not browser-tested: the tests are text checks on `app.js` and `index.html`. `app.js` is now well over the 200-line guide.

@@ -72,6 +72,10 @@ main {
 
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
 .controls label { width: 100%; color: var(--muted); }
+/* Voice input: the voice row takes a full line; "Listening..." in green, heard words muted */
+#voice-controls { width: 100%; margin-top: 0; }
+.listening { color: var(--green); font-weight: 600; }
+.heard { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
 textarea {
   flex: 1;
   min-width: 0;
