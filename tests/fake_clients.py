@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from typing import Any
 
+from natter.providers.fakes import FakeSpeech
 from natter.schema import Dossier
 
 
@@ -24,6 +25,10 @@ class FakeFactory:
     def __init__(self, kind: str, reply: Any = None) -> None:
         self.factory_kwargs: dict[str, Any] = {}  # what the provider passed to the SDK client
         self.create_calls: list[dict[str, Any]] = []  # what the provider passed to create()
+        if kind == "groq-speech":
+            # Shape of the Groq speech reply: an object with .read() giving bytes
+            audio = FakeSpeech().speak("x") if reply is None else reply
+            reply = SimpleNamespace(read=lambda: audio)
         if reply is None:
             reply = (
                 claude_response(Dossier().model_dump_json())
@@ -32,11 +37,12 @@ class FakeFactory:
             )
         self.reply = reply
         create = SimpleNamespace(create=self._create)
-        self.client = (
-            SimpleNamespace(messages=create)
-            if kind == "claude"
-            else SimpleNamespace(chat=SimpleNamespace(completions=create))
-        )
+        if kind == "claude":
+            self.client = SimpleNamespace(messages=create)
+        elif kind == "groq-speech":
+            self.client = SimpleNamespace(audio=SimpleNamespace(speech=create))
+        else:
+            self.client = SimpleNamespace(chat=SimpleNamespace(completions=create))
 
     def _create(self, **kwargs: Any) -> Any:
         self.create_calls.append(kwargs)

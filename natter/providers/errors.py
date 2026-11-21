@@ -11,3 +11,7 @@ class ExtractionError(Exception):
 
 class PersonaError(Exception):
     """The persona reply was unusable (no choice, no message, or it did not finish cleanly)."""
+
+
+class SpeechError(Exception):
+    """The speech reply was unusable (not a WAV)."""

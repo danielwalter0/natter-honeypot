@@ -32,6 +32,8 @@ def test_replay_only_raises_when_called() -> None:
         provider.reply([], Goal.AMOUNT)
     with pytest.raises(RuntimeError, match="replay-only provider was called"):
         provider.extract([])
+    with pytest.raises(RuntimeError, match="replay-only provider was called"):
+        provider.speak("hello")
 
 
 def test_recorded_cache_replays_without_keys(
