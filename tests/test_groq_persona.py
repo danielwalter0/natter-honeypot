@@ -145,3 +145,17 @@ def test_prompt_has_phone_and_spelling_rules() -> None:
     )
     assert "Use British English spelling and phrasing" in SYSTEM_PROMPT
     assert "Find a new angle each time." in SYSTEM_PROMPT
+
+
+def test_prompt_has_own_number_and_small_talk_rules() -> None:
+    # Rule 1: her own number is never given; she deflects and turns back to the caller
+    assert (
+        "If the caller asks for your phone number or any number of yours, never say digits."
+        in SYSTEM_PROMPT
+    )
+    assert "Never read out a number the caller did not say." in SYSTEM_PROMPT
+    # Rule 2: ordinary, varied small talk; the stock props at most once per call
+    assert "Keep the small talk ordinary and varied" in SYSTEM_PROMPT
+    assert (
+        "mention the kettle, your glasses or the cat at most once in a whole call" in SYSTEM_PROMPT
+    )
