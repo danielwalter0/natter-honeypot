@@ -24,6 +24,12 @@ const goalText = document.getElementById("goal");
 const notesList = document.getElementById("notes");
 const speechLabel = document.getElementById("speech-label");
 const speechMeter = document.getElementById("speech-meter");
+const voiceControls = document.getElementById("voice-controls");
+const startCallButton = document.getElementById("start-call-button");
+const stopCallButton = document.getElementById("stop-call-button");
+const listeningBadge = document.getElementById("listening");
+const heardText = document.getElementById("heard");
+const voiceUnsupported = document.getElementById("voice-unsupported");
 
 // ---- What the page remembers between turns
 let mode = null; // "replay" or "live", asked from the server at start
@@ -31,6 +37,7 @@ let linesTotal = null; // replay only: how many scammer lines the recording has
 let linesDone = 0; // replay only: how many have been played
 let ended = false; // true once the call is over; only Reset works then
 let currentAudio = null; // the ONE audio player for the whole page, made on first Play
+let latestAudio = null; // the audio of the newest reply (null if it has none)
 
 // ---- The owner's block: ONE dossier fact as one list item.
 // It must: create a list item with document.createElement("li"), set its text
@@ -91,9 +98,20 @@ function playClip(audioUrl) {
   if (currentAudio.src !== audioUrl) {
     currentAudio.src = audioUrl; // a different bubble: load its clip instead
   }
-  // play() can fail (a browser sound rule, bad audio data): say so, don't stay silent
-  currentAudio.play().catch(() => {
+  // play() can fail (a browser sound rule, bad audio data): say so, don't stay silent.
+  // The answer is true once the clip has started, false if it could not play, so the
+  // voice call knows whether to wait for the clip before listening again.
+  return currentAudio.play().then(() => true).catch(() => {
     statusText.textContent = "Could not play the audio.";
+    return false;
+  });
+}
+
+// ---- Wait until the shared player stops. "pause" fires when a clip reaches its end,
+// and also when stopClip cuts it off (Reset, or Play on another bubble).
+function clipStopped() {
+  return new Promise((resolve) => {
+    currentAudio.addEventListener("pause", resolve, { once: true });
   });
 }
 
@@ -129,6 +147,7 @@ function render(frame) {
   for (const bubble of frame.new_turns) {
     addBubble(bubble, frame.audio);
   }
+  latestAudio = frame.audio; // kept so a voice call can play the reply straight away
   // Scroll the call panel to the bottom, so the newest bubble is in view
   bubbles.scrollTop = bubbles.scrollHeight;
   // The whole dossier and every refusal so far are sent each time, so redraw them
@@ -158,6 +177,7 @@ function setBusy(busy) {
   nextButton.disabled = off;
   sendButton.disabled = off;
   lineInput.disabled = off;
+  startCallButton.disabled = off;
   resetButton.disabled = busy; // Reset only waits for the running turn
   if (busy) statusText.textContent = "Working…";
 }
@@ -211,12 +231,13 @@ liveForm.addEventListener("submit", async (event) => {
   event.preventDefault(); // stay on the page instead of reloading it
   const line = lineInput.value.trim();
   if (line === "") return;
-  if (await runTurn("/api/say", { line: line })) lineInput.value = "";
+  if (await sendLine(line)) lineInput.value = "";
 });
 
 // ---- Reset: start a fresh call and clear everything on the page
 resetButton.addEventListener("click", async () => {
   stopClip(); // the old call's voice stops at once
+  stopCall(); // and the microphone stops listening
   setBusy(true);
   try {
     const answer = await post("/api/reset");
@@ -250,6 +271,125 @@ function showMode() {
   replayProgress.textContent = mode === "replay" ? "0 of " + linesTotal + " lines" : "";
   speechLabel.textContent = mode === "live"
     ? "0 speech requests used" : "Recorded audio: no budget used.";
+}
+
+// ==== Voice input (live mode only) ====
+// The browser listens to the microphone and turns speech into text for us.
+// Chrome calls this webkitSpeechRecognition; some browsers have none at all.
+const Recogniser = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recogniser = null; // made on the first Start call click
+let callActive = false; // true between Start call and Stop call
+let paused = false; // true while a turn runs or Natter's reply plays
+
+// ---- Send one scammer line, heard or typed, through the one /api/say path,
+// so every guard on typed lines also applies to heard ones. Listening is
+// paused first, so the microphone cannot start a second turn meanwhile.
+async function sendLine(line) {
+  pauseListening();
+  const ok = await runTurn("/api/say", { line: line });
+  playReplyThenListen(ok); // not awaited: the typed box can be cleared at once
+  return ok;
+}
+
+// ---- During a voice call, play the new reply and only listen again once it
+// has finished, so the microphone does not hear Natter's own voice.
+async function playReplyThenListen(ok) {
+  if (ok && callActive && latestAudio) {
+    if (await playClip(latestAudio)) await clipStopped();
+  }
+  paused = false;
+  if (ended) stopCall(); // the call is over: stop listening for good
+  startListening();
+}
+
+// ---- Stop hearing for a while (a turn is running or a reply is playing).
+// abort() throws away anything half heard.
+function pauseListening() {
+  paused = true;
+  if (recogniser !== null) recogniser.abort();
+}
+
+// ---- Start hearing, but only during a call and when nothing else is happening
+function startListening() {
+  if (!callActive || paused || ended) return;
+  try {
+    recogniser.start();
+  } catch (error) {
+    // start() throws if it is already listening; that is fine, nothing to do
+  }
+}
+
+// ---- Turn the microphone off and put the buttons back to "Start call"
+function stopCall() {
+  callActive = false;
+  if (recogniser !== null) recogniser.abort();
+  listeningBadge.hidden = true;
+  heardText.textContent = "";
+  startCallButton.hidden = false;
+  stopCallButton.hidden = true;
+}
+
+// ---- Build the recogniser once and tell it what to do with what it hears
+function makeRecogniser() {
+  recogniser = new Recogniser();
+  recogniser.lang = "en-GB";
+  recogniser.interimResults = true; // send words as they are heard, not only at the end
+  recogniser.continuous = false; // one line at a time: it stops after each final result
+  // It has started listening: show the indicator
+  recogniser.onstart = () => {
+    listeningBadge.hidden = false;
+  };
+  // It has stopped (after a line, a silence, or abort): hide the indicator and,
+  // if the call is still on and nothing is running, listen again
+  recogniser.onend = () => {
+    listeningBadge.hidden = true;
+    startListening();
+  };
+  // New words heard. Words still being worked out are "interim" and are only shown;
+  // a "final" result is a whole line, which is sent as the scammer's turn.
+  recogniser.onresult = (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        heardText.textContent = "";
+        const line = result[0].transcript.trim();
+        if (line !== "") sendLine(line);
+        return;
+      }
+      interim = interim + result[0].transcript;
+    }
+    heardText.textContent = interim; // plain text only, like everything else
+  };
+  // Something went wrong. Silence ("no-speech") and our own abort() ("aborted") are
+  // normal, and onend listens again. Anything else (microphone blocked, no network,
+  // no microphone) ends the voice call, and the typed box still works.
+  recogniser.onerror = (event) => {
+    if (event.error === "no-speech" || event.error === "aborted") return;
+    statusText.textContent = "Voice input stopped (" + event.error + "). Type the line instead.";
+    stopCall();
+  };
+}
+
+// ---- Start call: this click is also what lets the browser play Natter's audio
+// on its own later, because browsers only allow sound after the user clicks.
+startCallButton.addEventListener("click", () => {
+  if (recogniser === null) makeRecogniser();
+  callActive = true;
+  paused = false;
+  startCallButton.hidden = true;
+  stopCallButton.hidden = false;
+  statusText.textContent = "";
+  startListening();
+});
+
+// ---- Stop call: listening off. The typed box and Send keep working.
+stopCallButton.addEventListener("click", stopCall);
+
+// ---- No recogniser in this browser: hide the voice buttons and say why
+if (!Recogniser) {
+  voiceControls.hidden = true;
+  voiceUnsupported.hidden = false;
 }
 
 // ---- Start: ask the server which mode it runs in, then set the page up

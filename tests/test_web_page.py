@@ -107,3 +107,51 @@ def test_script_uses_one_shared_audio_player() -> None:
 def test_reset_stops_the_current_clip() -> None:
     # A text check: the Reset handler's first step stops and rewinds the shared player
     assert 'resetButton.addEventListener("click", async () => {\n  stopClip();' in read("app.js")
+
+
+# --- voice input in live mode (text checks, not browser tests) ---
+
+
+def test_voice_uses_the_browser_recogniser_in_british_english() -> None:
+    js = read("app.js")
+    assert "window.SpeechRecognition || window.webkitSpeechRecognition" in js
+    assert 'recogniser.lang = "en-GB";' in js
+    assert "recogniser.interimResults = true;" in js  # interim text is shown as it is heard
+
+
+def test_heard_and_typed_lines_share_the_one_say_path() -> None:
+    # Only sendLine calls /api/say, so a heard line gets every guard a typed line gets
+    js = read("app.js")
+    assert js.count('runTurn("/api/say"') == 1
+    assert 'pauseListening();\n  const ok = await runTurn("/api/say", { line: line });' in js
+    assert 'if (line !== "") sendLine(line);' in js  # a final result from the recogniser
+    assert "if (await sendLine(line)) lineInput.value" in js  # the typed fallback
+
+
+def test_listening_waits_for_the_reply_audio_to_finish() -> None:
+    js = read("app.js")
+    assert "if (await playClip(latestAudio)) await clipStopped();" in js
+    assert 'currentAudio.addEventListener("pause", resolve, { once: true });' in js
+    assert "return currentAudio.play().then(() => true).catch(" in js  # says if it started
+
+
+def test_recogniser_errors_stop_the_call_and_reset_stops_it_too() -> None:
+    js = read("app.js")
+    assert "recogniser.onerror = (event) => {" in js
+    assert 'event.error === "no-speech" || event.error === "aborted"' in js
+    # Reset's first two steps: stop the clip, then stop listening (comments allowed after each)
+    reset = (
+        r'resetButton\.addEventListener\("click", async \(\) => \{\n'
+        r"  stopClip\(\);.*\n  stopCall\(\);"
+    )
+    assert re.search(reset, js)
+
+
+def test_voice_controls_and_unsupported_line_are_in_the_page() -> None:
+    html = read("index.html")
+    assert re.search(r'id="stop-call-button"[^>]*\bhidden\b', html)  # shown once a call starts
+    assert re.search(r'id="listening"[^>]*\bhidden\b', html)
+    assert re.search(r'id="voice-unsupported"[^>]*\bhidden\b', html)
+    assert "Voice input needs Chrome or Edge." in html
+    js = read("app.js")
+    assert "if (!Recogniser) {" in js  # no recogniser: hide the buttons, show the line

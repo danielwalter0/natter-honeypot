@@ -36,6 +36,14 @@
 
       <!-- Live controls: shown only in live mode -->
       <form id="live-form" class="controls" hidden>
+        <!-- Voice input: the browser listens and turns speech into a scammer line -->
+        <div id="voice-controls" class="controls">
+          <button id="start-call-button" type="button">Start call</button>
+          <button id="stop-call-button" type="button" hidden>Stop call</button>
+          <span id="listening" class="listening" hidden>Listening...</span>
+          <span id="heard" class="heard"></span>
+        </div>
+        <p id="voice-unsupported" class="heard" hidden>Voice input needs Chrome or Edge.</p>
         <label for="line-input">Scammer line</label>
         <textarea id="line-input" rows="2" maxlength="2000"
                   placeholder="Type what the scammer says"></textarea>
