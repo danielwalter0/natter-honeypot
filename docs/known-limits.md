@@ -55,3 +55,17 @@
 - The refusal guard only matches known openers at the start of a reply; other refusals pass. An in-character reply that starts like one ("I can't help it, dear") becomes a stall (fails safe).
 - The seam rule cuts abbreviations ("Mr.Smith" becomes "Mr.", "the U.K." becomes "the U.") and misses `"dear\u2026Could"`, because the ellipsis is mapped to "..." only after the seam check.
 - `NATTER_RAW_LOG` is debug-only. It writes raw model text to any path it is given (point it into `spike_out/`, which is gitignored), and a bad path raises `OSError` and ends the call.
+
+## Speech (`audio_cache.py`, `groq_speech.py`, `throttle.py`)
+
+- `is_wav` checks only the RIFF/WAVE marks. Groq streams WAVs with a placeholder data length (Python's `wave` reads about 89,000 s), so neither the duration nor the length fields are checked. Only the 1 MB per-file and 8 MB per-folder caps bound the audio.
+- If a store fails after the `.wav.tmp` write and before `os.replace`, the `.tmp` file is left behind. It is never loaded, but it must not be committed.
+- The audio key covers the prepared text and the provider name (model and voice), plus a `speak:v1` method version. If the prep rules or the direction tag change and the version is not bumped, replay serves stale WAVs.
+- If the text cassettes are re-recorded, every audio key goes stale. Replay then raises `CacheMiss` and never calls Groq, but all the audio must be re-recorded, which costs free-tier quota.
+- Committed WAVs stay in git history for good, so every re-record adds about 5 MB to the clone.
+- The throttle limits requests per minute only. It does not track Groq's per-minute or per-day token caps. A 429 ends the record run (`max_retries=0`), and a rerun resumes from the cache.
+- `record_audio.py` replays the text cassettes to find the persona lines, so audio can only be made for a scenario that already has text cassettes.
+- The pre-flight cap is 12 real requests per run.
+- Errors from our own code (ValueError, SpeechError, MissingKeyError, CacheMiss) show their message. SDK errors are reported by type and status only, so the Groq error message is not shown. The owner reads it in the Groq console.
+- The recorder treats a truncated or non-WAV file as missing and re-records it, overwriting the bad file.
+- No 15 s per-clip duration check (SPEC.md asks for 15 s and 1 MB per turn). The owner accepted this: at 24 kHz mono 16-bit, 1 MB is about 21 s, and the 1 MB cap bounds it in practice.

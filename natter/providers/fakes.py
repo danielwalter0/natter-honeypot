@@ -1,5 +1,8 @@
 """Fake providers for tests and replay. No network, no randomness, no env reads."""
 
+import io
+import wave
+
 from natter.picker import Goal
 from natter.schema import Dossier, Turn
 
@@ -39,3 +42,22 @@ class FakeExtractor:
     def extract(self, transcript: list[Turn]) -> Dossier:
         # Deep copy so callers cannot change the preset
         return self.dossier.model_copy(deep=True)
+
+
+class FakeSpeech:
+    """Returns the same tiny silent WAV every time and remembers the texts it got."""
+
+    name = "fake-speech"
+
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def speak(self, text: str) -> bytes:
+        self.texts.append(text)
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav:
+            wav.setnchannels(1)  # mono
+            wav.setsampwidth(2)  # 16-bit samples
+            wav.setframerate(24000)
+            wav.writeframes(b"\x00\x00" * 10)  # ten silent frames
+        return buffer.getvalue()

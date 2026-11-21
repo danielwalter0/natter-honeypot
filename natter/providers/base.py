@@ -20,6 +20,20 @@ class Persona(Protocol):
         ...
 
 
+class Speech(Protocol):
+    """Turns persona text into spoken audio. It has no tools.
+
+    The text is persona model output that has already been prepared (brackets
+    stripped, direction added, at most 200 characters). The result is WAV bytes.
+    """
+
+    name: str  # goes into the cache key
+
+    def speak(self, text: str) -> bytes:
+        """Return WAV bytes for the text."""
+        ...
+
+
 class Extractor(Protocol):
     """Reads the transcript and proposes facts for the dossier."""
 
