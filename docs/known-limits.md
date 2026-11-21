@@ -108,5 +108,17 @@
 - Recognition errors: silence (`no-speech`) just listens again. Any other error (microphone blocked, no network, no microphone) ends the voice call with a status line naming the browser's error code; press Start call again or type the line.
 - Recognition mistakes are sent as heard. A misheard line is a real scammer turn: it costs an extraction and is in the transcript. There is no "check before sending" step.
 - Each final result is one turn, so a long sentence with a pause in it can arrive as two turns.
-- Audio plays on its own only after the Start call click (the browser's sound rule). If `play()` still fails, the page says "Could not play the audio." and listens again straight away.
+- Audio plays on its own only after a click on the page, such as Start call or Send (the browser's sound rule). If `play()` still fails, the page says "Could not play the audio." and listens again straight away.
 - The voice code is not browser-tested: the tests are text checks on `app.js` and `index.html`. `app.js` is now well over the 200-line guide.
+
+## Latency filler (`filler.py`, `record_filler.py`, live page)
+
+- The eight filler lines are generic stock phrases ("Oh, just a moment, dear."). They do not react to what the caller said, so a filler can sound odd after a line that needs no pause.
+- Fillers are sound only. They are not part of the transcript or the dossier, they never become a bubble, and the page never shows or claims them as the model's reply. The extractor never sees them.
+- The clips are recorded once by `scripts/record_filler.py` into `assets/filler/` and read once when `python -m natter.web --live` starts. With no folder, or a broken clip, that clip is skipped and the page works without it; restart the server after recording.
+- The clips are named by the speech key (provider name plus prepared text), so a change to a filler line, the voice, or `prepare_speech_text` makes the old clips unused. Re-record them, and the committed-folder test then fails until the old WAVs are removed.
+- At most two fillers play in a row. A reply that takes longer still leaves a silence after the second filler.
+- Typed lines get the same audio as heard ones: a filler, then the reply once the filler ends, through the shared player. A typed line never turns the microphone on; during a voice call, listening resumes after the reply as usual. The Send click is what lets the browser play the audio, so typing a line and pressing Enter counts too.
+- The Send button comes back as soon as the reply arrives, while the filler or reply may still be playing. A second typed line then cuts that clip off with its own filler.
+- Clicking Play on a bubble while a filler plays cuts the filler off; if the reply is still not ready, the second filler then cuts off that clip.
+- The `/api/mode` answer in live mode carries all eight clips as base64 (roughly 1 MB in all), once per page load.

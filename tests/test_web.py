@@ -256,3 +256,21 @@ def test_docs_and_openapi_are_off() -> None:
     c = client(live_app())
     assert c.get("/docs").status_code == 404
     assert c.get("/openapi.json").status_code == 404
+
+
+# ---------------------------------------------------------------- filler clips
+
+
+def test_live_mode_sends_the_filler_clips() -> None:
+    urls = ["data:audio/wav;base64,AAAA", "data:audio/wav;base64,BBBB"]
+    app = create_app("live", make_call, None, 15, filler=urls)
+    assert client(app).get("/api/mode").json()["filler"] == urls
+
+
+def test_live_mode_with_no_filler_sends_an_empty_list() -> None:
+    assert client(live_app()).get("/api/mode").json()["filler"] == []
+
+
+def test_replay_mode_never_sends_filler() -> None:
+    app = create_app("replay", lambda: make_replay_call()[0], ["x"], None, filler=["data:x"])
+    assert "filler" not in client(app).get("/api/mode").json()

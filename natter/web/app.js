@@ -286,15 +286,53 @@ let paused = false; // true while a turn runs or Natter's reply plays
 // paused first, so the microphone cannot start a second turn meanwhile.
 async function sendLine(line) {
   pauseListening();
-  const ok = await runTurn("/api/say", { line: line });
-  playReplyThenListen(ok); // not awaited: the typed box can be cleared at once
+  const turn = runTurn("/api/say", { line: line });
+  // The turn has started but is not waited for yet, so a filler can play meanwhile
+  const fillers = playFillers(turn);
+  const ok = await turn;
+  playReplyThenListen(ok, fillers); // not awaited: the typed box can be cleared at once
   return ok;
 }
 
-// ---- During a voice call, play the new reply and only listen again once it
-// has finished, so the microphone does not hear Natter's own voice.
-async function playReplyThenListen(ok) {
-  if (ok && callActive && latestAudio) {
+// ---- Latency filler: while the real reply is being made, Natter says a short
+// stock line ("Oh, just a moment, dear.") so the caller does not hear silence.
+// The fillers are only sound: they never become a bubble, a turn or a fact.
+let fillerClips = []; // WAV data URLs from the server; stays empty if none were recorded
+let lastFiller = -1; // which clip played last, so the next one is different
+
+// ---- Pick a random filler clip, never the same one as last time
+function pickFiller() {
+  let i = Math.floor(Math.random() * fillerClips.length);
+  if (fillerClips.length > 1 && i === lastFiller) {
+    i = (i + 1) % fillerClips.length; // the same as last time: take the next one instead
+  }
+  lastFiller = i;
+  return fillerClips[i];
+}
+
+// ---- Play filler while the turn runs: one straight away, and one more only if
+// the reply is still not ready when the first one ends. Never more than two.
+// With no filler clips this does nothing, so the page works as it did before.
+async function playFillers(turn) {
+  let replyReady = false;
+  turn.then(() => {
+    replyReady = true; // runTurn never fails outright, so this always happens
+  });
+  for (let played = 0; played < 2; played++) {
+    if (fillerClips.length === 0 || (played > 0 && replyReady)) return;
+    if (!(await playClip(pickFiller()))) return; // could not play: give up on filler
+    await clipStopped();
+  }
+}
+
+// ---- Play the new reply, for typed and heard lines alike, then listen again
+// once it has finished, so the microphone does not hear Natter's own voice.
+// The filler always finishes first, so the reply never cuts it off.
+// startListening does nothing outside a voice call, so a typed line never turns
+// the microphone on.
+async function playReplyThenListen(ok, fillers) {
+  await fillers;
+  if (ok && latestAudio) {
     if (await playClip(latestAudio)) await clipStopped();
   }
   paused = false;
@@ -399,6 +437,8 @@ async function start() {
     const info = await response.json();
     mode = info.mode;
     linesTotal = info.lines_total;
+    // Live mode sends the filler clips; replay sends none, so the list stays empty
+    fillerClips = Array.isArray(info.filler) ? info.filler : [];
     showMode();
     setBusy(false);
   } catch (error) {
