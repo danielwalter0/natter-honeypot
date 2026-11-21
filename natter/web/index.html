@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natter</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- defer: the script runs after the page below has been built -->
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Natter</h1>
+    <span id="mode-badge" class="badge">loading</span>
+    <span id="status" class="status" aria-live="polite"></span>
+    <button id="reset-button" type="button">Reset</button>
+  </header>
+
+  <!-- The reviewer strip: what was kept, what was refused, why the goal was picked -->
+  <section id="why-strip" class="why" aria-label="Why">
+    <h2>Why</h2>
+    <ul id="why-list"><li>Start the call to see each decision.</li></ul>
+  </section>
+
+  <main>
+    <!-- Left: the call as chat bubbles -->
+    <section class="panel" aria-label="Call">
+      <h2>Call</h2>
+      <ol id="bubbles" class="bubbles"></ol>
+
+      <!-- Replay controls: shown only in replay mode -->
+      <div id="replay-controls" class="controls" hidden>
+        <button id="next-button" type="button">Next turn</button>
+        <span id="replay-progress"></span>
+      </div>
+
+      <!-- Live controls: shown only in live mode -->
+      <form id="live-form" class="controls" hidden>
+        <label for="line-input">Scammer line</label>
+        <textarea id="line-input" rows="2" maxlength="2000"
+                  placeholder="Type what the scammer says"></textarea>
+        <button id="send-button" type="submit">Send</button>
+      </form>
+    </section>
+
+    <!-- Right: the dossier filling in -->
+    <section class="panel" aria-label="Dossier">
+      <h2>Dossier</h2>
+      <ul id="facts" class="facts"></ul>
+
+      <h3>Refused</h3>
+      <ul id="refused" class="refused"></ul>
+
+      <h3>Goal for the last reply</h3>
+      <p id="goal">No reply yet.</p>
+
+      <h3>Notes</h3>
+      <ul id="notes" class="notes"></ul>
+
+      <h3>Speech budget</h3>
+      <p id="speech-label">Recorded audio: no budget used.</p>
+      <progress id="speech-meter" max="1" value="0" hidden></progress>
+    </section>
+  </main>
+</body>
+</html>

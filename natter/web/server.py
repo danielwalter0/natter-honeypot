@@ -1,4 +1,4 @@
-"""The local web server for the Natter page. Local only; no static routes yet.
+"""The local web server for the Natter page. Local only.
 
 Design
 - FastAPI(docs_url=None, redoc_url=None, openapi_url=None): no /docs, no schema.
@@ -15,6 +15,7 @@ Design
     connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none';
     frame-ancestors 'none'; form-action 'none'", X-Content-Type-Options nosniff,
     Referrer-Policy no-referrer, X-Frame-Options DENY, Cache-Control no-store.
+- GET /, /app.js, /style.css: the three page files, read once at start.
 - GET /api/mode -> {"mode", "speech_cap", "lines_total" (len(lines) or None)}.
 - POST /api/step (replay only; live gives 404 {"detail": "not found"}):
   - lines used up -> 409 {"detail": "replay finished"}.
@@ -36,6 +37,7 @@ Design
 import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, Request, Response
@@ -45,6 +47,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from natter.live import LiveCall
 from natter.web_view import Frame, build_frame
+
+PAGE_DIR = Path(__file__).parent  # index.html, app.js and style.css live next to this file
+# Published path -> (file name, media type). Only these three files are ever served.
+PAGE_FILES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/style.css": ("style.css", "text/css; charset=utf-8"),
+}
 
 # Sent on every response, including errors
 SECURITY_HEADERS = {
@@ -81,6 +91,19 @@ class CallHolder:
 def _reply(status: int, body: dict[str, object]) -> JSONResponse:
     """A JSON response with the security headers already on it."""
     return JSONResponse(body, status_code=status, headers=SECURITY_HEADERS)
+
+
+def _page_route(body: str, media_type: str) -> Callable[[], Response]:
+    """A route that always returns this one file.
+
+    The route takes NO arguments on purpose: FastAPI would turn any argument into a
+    query parameter, and then ?body=... could replace the page.
+    """
+
+    def serve() -> Response:
+        return Response(body, media_type=media_type)
+
+    return serve
 
 
 def create_app(
@@ -132,6 +155,11 @@ def create_app(
         previous_goal = call.state.previous_goal
         reply = call.say(line)
         return build_frame(call.state, reply, turns_before, previous_goal, speech_cap)
+
+    # The page files: read once, then served from memory. No path comes from the request.
+    for path, (name, media_type) in PAGE_FILES.items():
+        body = (PAGE_DIR / name).read_text(encoding="utf-8")
+        app.add_api_route(path, _page_route(body, media_type), methods=["GET"])
 
     @app.get("/api/mode")
     def get_mode() -> dict[str, object]:

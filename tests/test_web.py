@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from natter.providers.reply_tidy import SAFE_STALL
-from natter.web import create_app
+from natter.web.server import create_app
 from natter.web_wiring import make_replay_call
 from tests.live_fakes import HOSTILE_TEXT, LINES, RaisingPersona, RaisingSpeech, make_call
 
