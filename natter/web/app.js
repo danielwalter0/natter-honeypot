@@ -30,6 +30,7 @@ let mode = null; // "replay" or "live", asked from the server at start
 let linesTotal = null; // replay only: how many scammer lines the recording has
 let linesDone = 0; // replay only: how many have been played
 let ended = false; // true once the call is over; only Reset works then
+let currentAudio = null; // the ONE audio player for the whole page, made on first Play
 
 // ---- The owner's block: ONE dossier fact as one list item.
 // It must: create a list item with document.createElement("li"), set its text
@@ -71,6 +72,31 @@ function textItem(text) {
   return item;
 }
 
+// ---- Stop the shared player and rewind it to the start (nothing to do before
+// the first Play, when there is no player yet). Used by Play and by Reset.
+function stopClip() {
+  if (currentAudio === null) return;
+  currentAudio.pause();
+  currentAudio.currentTime = 0;
+}
+
+// ---- Play one Natter clip from the start, through the one shared player.
+// Whatever is playing is stopped and rewound first, so clicking Play (on another
+// bubble, or the same one again) never plays two copies over each other.
+function playClip(audioUrl) {
+  if (currentAudio === null) {
+    currentAudio = new Audio(); // made once, the first time any Play is clicked
+  }
+  stopClip(); // the same bubble restarts from the start; another bubble cuts in
+  if (currentAudio.src !== audioUrl) {
+    currentAudio.src = audioUrl; // a different bubble: load its clip instead
+  }
+  // play() can fail (a browser sound rule, bad audio data): say so, don't stay silent
+  currentAudio.play().catch(() => {
+    statusText.textContent = "Could not play the audio.";
+  });
+}
+
 // ---- Add one chat bubble. A Natter bubble with audio gets a Play button,
 // because browsers do not let a page start sound on its own.
 function addBubble(bubble, audioUrl) {
@@ -86,7 +112,7 @@ function addBubble(bubble, audioUrl) {
     const play = document.createElement("button");
     play.type = "button";
     play.textContent = "▶ Play";
-    play.addEventListener("click", () => new Audio(audioUrl).play());
+    play.addEventListener("click", () => playClip(audioUrl));
     item.append(play);
   }
   bubbles.append(item);
@@ -155,6 +181,13 @@ async function runTurn(path, body) {
       render(answer.data);
       return true;
     }
+    // The recording has no lines left (e.g. the page was reloaded after the end):
+    // treat it as the end of the call, so setBusy below switches Next turn off
+    if (answer.data.detail === "replay finished") {
+      ended = true;
+      statusText.textContent = "Replay finished. Press Reset to play it again.";
+      return false;
+    }
     statusText.textContent = "Refused by server: " + answer.data.detail; // short text we wrote
     return false;
   } catch (error) {
@@ -183,6 +216,7 @@ liveForm.addEventListener("submit", async (event) => {
 
 // ---- Reset: start a fresh call and clear everything on the page
 resetButton.addEventListener("click", async () => {
+  stopClip(); // the old call's voice stops at once
   setBusy(true);
   try {
     const answer = await post("/api/reset");

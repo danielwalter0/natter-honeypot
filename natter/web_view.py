@@ -160,8 +160,18 @@ def build_frame(
     else:
         why_goal = goal_reason(reply.dossier, previous_goal, reply.goal, stalled)
 
-    why = [f"Kept {len(facts)} fact(s), each tied to an exact scammer quote."]
-    if reply.rejections:  # drops from this turn
+    # caller_type is a judgement with no quote, so it is not counted as a quoted fact
+    quoted = [f for f in facts if f.quote is not None]
+    why = [f"Kept {len(quoted)} fact(s), each tied to an exact scammer quote."]
+    if len(quoted) < len(facts):
+        why.append("Caller type is a judgement with no quote, so it is not checked.")
+    # The check ran only if a scammer turn was added AND the extraction did not fail
+    # or hit its cap (live.py's notes say which)
+    added_line = any(b.speaker == "scammer" for b in new_turns)
+    no_extraction = any(n.startswith(("extraction failed", "extraction cap")) for n in reply.notes)
+    if not added_line or no_extraction:
+        why.append("No check ran this turn, so nothing new was kept or refused.")
+    elif reply.rejections:  # drops from this turn
         why += [f"Refused {r.field}: {r.reason}." for r in reply.rejections]
     elif not refused:
         why.append("Refused nothing so far: every proposed fact passed the check.")

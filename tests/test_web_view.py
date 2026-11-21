@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from natter.goal_reason import goal_reason
+from natter.providers.fakes import FakeExtractor
 from natter.schema import (
     CallerType,
     Dossier,
@@ -22,7 +23,7 @@ from natter.schema import (
     Tactic,
 )
 from natter.web_view import Frame, audio_url, build_frame, dossier_rows, format_value
-from tests.live_fakes import BAD, LINES, PHONE, RaisingPersona, make_call
+from tests.live_fakes import BAD, LINES, PHONE, RaisingExtractor, RaisingPersona, make_call
 
 
 def ev(turn: int, quote: str) -> Evidence:
@@ -218,6 +219,45 @@ def test_no_refusals_says_so() -> None:
     frame = build_frame(call.state, reply, 0, None, None)
     assert frame.refused == []
     assert "Refused nothing so far: every proposed fact passed the check." in frame.why
+
+
+QUOTED_LINE = "Kept 1 fact(s), each tied to an exact scammer quote."
+NO_CHECK_LINE = "No check ran this turn, so nothing new was kept or refused."
+
+
+def test_caller_type_is_not_counted_as_a_quoted_fact() -> None:
+    judged = Judgement(value=CallerType.HUMAN, confidence=0.5, rationale="sounds natural")
+    call = make_call(extractor=FakeExtractor(Dossier(identifiers=[PHONE], caller_type=judged)))
+    frame = build_frame(call.state, call.say(LINES[0]), 0, None, None)
+    assert len(frame.facts) == 2  # the phone number and the caller type
+    assert frame.why[0] == QUOTED_LINE  # only the phone has a quote
+    assert frame.why[1] == "Caller type is a judgement with no quote, so it is not checked."
+
+
+def test_caller_type_line_only_when_there_is_a_caller_type() -> None:
+    call = make_call()
+    frame = build_frame(call.state, call.say(LINES[0]), 0, None, None)
+    assert not any(w.startswith("Caller type") for w in frame.why)
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [
+        {"extractor": RaisingExtractor(RuntimeError("boom"))},  # extraction failed
+        {"max_extractions": 0},  # extraction cap reached
+    ],
+)
+def test_no_check_is_said_plainly(parts: dict[str, object]) -> None:
+    call = make_call(**parts)
+    frame = build_frame(call.state, call.say(LINES[0]), 0, None, None)
+    assert NO_CHECK_LINE in frame.why
+    assert not any("passed the check" in w for w in frame.why)
+
+
+def test_rejected_line_runs_no_check() -> None:
+    call = make_call()
+    frame = build_frame(call.state, call.say("   "), 0, None, None)
+    assert NO_CHECK_LINE in frame.why
 
 
 def test_untrusted_text_is_not_escaped() -> None:

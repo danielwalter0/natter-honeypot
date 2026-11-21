@@ -1,37 +1,16 @@
-"""The local web server for the Natter page. Local only.
+"""The local web server for the Natter page. Local only; no /docs or schema page.
 
-Design
-- FastAPI(docs_url=None, redoc_url=None, openapi_url=None): no /docs, no schema.
-- A small dataclass CallHolder(call, lines, next_line, lock: threading.Lock) lives
-  on app.state.holder.
-- An http middleware runs on EVERY request:
-  - Host must be exactly 127.0.0.1:{port} or localhost:{port}, else 403
-    {"detail": "forbidden"}. This is the DNS-rebinding defence.
-  - Any request that is not GET or HEAD must carry an Origin equal to
-    http://127.0.0.1:{port} or http://localhost:{port}, else 403.
-  - A GET that carries a foreign Origin is also 403.
-  - Security headers go on every response, including 403s: Content-Security-Policy
-    "default-src 'self'; script-src 'self'; style-src 'self'; media-src 'self' data:;
-    connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none';
-    frame-ancestors 'none'; form-action 'none'", X-Content-Type-Options nosniff,
-    Referrer-Policy no-referrer, X-Frame-Options DENY, Cache-Control no-store.
-- GET /, /app.js, /style.css: the three page files, read once at start.
-- GET /api/mode -> {"mode", "speech_cap", "lines_total" (len(lines) or None)}.
-- POST /api/step (replay only; live gives 404 {"detail": "not found"}):
-  - lines used up -> 409 {"detail": "replay finished"}.
-  - else record turns_before and previous_goal from call.state, call.say(next line),
-    then build_frame(...). On the LAST line the returned frame has ended=True
-    (model_copy(update=...)).
-- POST /api/say (live only; replay gives 404). Body model SayBody(line: str =
-  Field(max_length=2000)) with extra="forbid". Returns a Frame the same way.
-- POST /api/reset: holder.call = make_call(), next_line = 0, returns {"ok": true}.
-- Busy: /api/step and /api/say use lock.acquire(blocking=False). If already held:
-  409 {"detail": "a turn is already running"}, so a double click never queues a
-  second paid turn.
-- RequestValidationError -> 422 {"detail": "invalid request", "fields": [last part
-  of each error loc, as str]}. It never echoes the input. Any other Exception ->
-  500 {"detail": "server error"}.
-- Nothing logs request bodies.
+Every request goes through guard(): the Host must be 127.0.0.1:{port} or
+localhost:{port} (the DNS-rebinding defence); a request that is not a GET must carry
+our own Origin; a GET with a foreign Origin is refused. Security headers go on every
+response. Only GET is served (HEAD gets 405).
+
+Routes: GET /, /app.js, /style.css (the page files); GET /api/mode; POST /api/step
+(replay only); POST /api/say (live only); POST /api/reset. Step, say and reset share
+one lock: a second request while one runs gets 409, so no paid turn is ever queued.
+
+Errors never echo input: a 422 names only known fields, a 500 says "server error".
+Nothing logs request bodies.
 """
 
 import threading
@@ -55,6 +34,9 @@ PAGE_FILES = {
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
 }
+
+# Field names a 422 answer may name; any other key came from the sender
+KNOWN_FIELDS = {"line", "body"}
 
 # Sent on every response, including errors
 SECURITY_HEADERS = {
@@ -144,8 +126,12 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # Only the field names go back, never the input itself
-        fields = [str(e["loc"][-1]) for e in exc.errors()]
+        # Only names WE chose go back. An unknown key is the sender's text, so it is
+        # never echoed; it is reported as "unknown field".
+        fields = [
+            str(e["loc"][-1]) if e["loc"][-1] in KNOWN_FIELDS else "unknown field"
+            for e in exc.errors()
+        ]
         return _reply(422, {"detail": "invalid request", "fields": fields})
 
     def run_turn(line: str) -> Frame:

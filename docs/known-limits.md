@@ -83,8 +83,19 @@
 - A scammer line that is the literal text `quit` ends the terminal loop instead of being sent.
 - `python -m natter.live` runs `live.py` as `__main__` and imports `live_cli`, which imports `natter.live` again as a normal module, so the module is loaded twice. This is harmless (the loop uses the second copy) but would surprise anyone adding module-level state to `live.py`.
 
-## Web page (`natter/web.py`, slice 7)
+## Web page (`natter/web/`, slice 7)
 
 - No daily spend cap (`NATTER_DAILY_SPEND_CAP_USD` is not built). `python -m natter.web --live` prints a warning at start. Each server start, and each reset, gets a fresh `LiveCall` with its own per-call caps (40 turns, 20 extractions, 15 speech requests, 600 s), so restarting the server resets the spend limits.
 - One call per server process: two browser tabs share and drive the same call. A turn, a step and a reset share one lock; a second request while one runs gets 409, it is not queued.
 - Request bodies have no overall size cap (SPEC says 64 KB). `line` is limited to 2000 characters, but FastAPI reads and parses the whole body first. Local only, so low risk; a Content-Length check is a later fix.
+- Reloading the page in the middle of a replay loses its place: the page shows "0 of 10" with no bubbles, while the server carries on from where it was, so the next click plays a later line. Press Reset after a reload. (After the end, a reload is handled: the "replay finished" answer switches Next turn off.)
+- If the server answers with something that is not JSON (an HTML error page from a proxy, a 502), the page says "Could not reach the server." A JSON error with no `detail` shows "Refused by server: undefined". Both are misleading but safe.
+- Audio uses one shared player: a new Play stops and rewinds the current clip, and a failed `play()` shows "Could not play the audio." The reason it failed is not shown.
+- If `/api/step` fails with a 500 after the server has used up the line, the page's "N of 10 lines" count is one behind the server.
+- If the first `/api/mode` request fails, the page never learns its mode; a later Reset shows "replay" and hides both control sets. Reload the page.
+- The CSP allows `media-src data:` for the reply audio. Only Python builds those URLs (a fixed prefix plus base64), so no untrusted text reaches them; `blob:` would be tighter.
+- uvicorn's access log includes query strings (`POST /api/step?x=...`). The page never sends any and bodies are not logged, so only someone typing a URL by hand can put text there.
+- `goal_reason`'s last branch ("No question this reply.") cannot be reached with `choose_goal` as written; it is kept as a safe default.
+- `build_frame` spots a stall, a failed extraction and a hit extraction cap by matching the start of `LiveCall`'s notes ("persona failed", "extraction failed", "extraction cap"). Rewording those notes in `live.py` breaks this silently in code, though the web_view tests would fail.
+- Test gaps: the replay parity test does not compare rejections or rejection turns (the recorded call has none), and no `build_frame` test runs the "does not repeat herself" goal branch end to end (the reviewer checked it by hand on fakes).
+- The call's 600 s clock starts at its first line, not when the call is built, so a server left idle keeps the full time. Reset builds a new call, whose clock starts at its own first line.

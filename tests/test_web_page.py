@@ -82,3 +82,28 @@ def test_hidden_controls_really_are_hidden() -> None:
     html = read("index.html")
     assert re.search(r'id="replay-controls"[^>]*\bhidden\b', html)
     assert re.search(r'id="live-form"[^>]*\bhidden\b', html)
+
+
+def test_script_treats_replay_finished_as_the_end_of_the_call() -> None:
+    # A text check, not a browser test: the 409 "replay finished" answer must end the
+    # call on the page (so Next turn is switched off), e.g. after a reload.
+    js = read("app.js")
+    assert 'answer.data.detail === "replay finished"' in js
+
+
+def test_script_uses_one_shared_audio_player() -> None:
+    # A text check, not a browser test: one shared player, stopped and rewound before
+    # each new clip, so two clips never play over each other; a failed play() is caught.
+    js = read("app.js")
+    assert "let currentAudio = null;" in js
+    assert "function playClip(audioUrl)" in js
+    assert "currentAudio.pause();" in js
+    assert "currentAudio.currentTime = 0;" in js
+    assert ".catch(" in js
+    assert js.count("new Audio(") == 1  # only playClip makes a player
+    assert 'addEventListener("click", () => playClip(audioUrl))' in js
+
+
+def test_reset_stops_the_current_clip() -> None:
+    # A text check: the Reset handler's first step stops and rewinds the shared player
+    assert 'resetButton.addEventListener("click", async () => {\n  stopClip();' in read("app.js")
