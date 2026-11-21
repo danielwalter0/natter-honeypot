@@ -123,7 +123,8 @@ def test_heard_and_typed_lines_share_the_one_say_path() -> None:
     # Only sendLine calls /api/say, so a heard line gets every guard a typed line gets
     js = read("app.js")
     assert js.count('runTurn("/api/say"') == 1
-    assert 'pauseListening();\n  const ok = await runTurn("/api/say", { line: line });' in js
+    # Listening pauses before the turn starts (the turn then runs while filler plays)
+    assert 'pauseListening();\n  const turn = runTurn("/api/say", { line: line });' in js
     assert 'if (line !== "") sendLine(line);' in js  # a final result from the recogniser
     assert "if (await sendLine(line)) lineInput.value" in js  # the typed fallback
 
@@ -155,3 +156,60 @@ def test_voice_controls_and_unsupported_line_are_in_the_page() -> None:
     assert "Voice input needs Chrome or Edge." in html
     js = read("app.js")
     assert "if (!Recogniser) {" in js  # no recogniser: hide the buttons, show the line
+
+
+# --- latency filler in live mode (text checks, not browser tests) ---
+
+
+def function_body(js: str, name: str) -> str:
+    """The text of one top-level function in app.js, from its name to its closing brace."""
+    match = re.search(
+        rf"\nasync function {name}\(.*?\n\}}\n|\nfunction {name}\(.*?\n\}}\n", js, re.S
+    )
+    assert match, name
+    return match.group(0)
+
+
+def test_filler_clips_come_from_the_mode_answer() -> None:
+    js = read("app.js")
+    assert "let fillerClips = [];" in js  # none until the server sends some
+    assert "fillerClips = Array.isArray(info.filler) ? info.filler : [];" in js
+
+
+def test_filler_starts_with_the_turn_and_the_reply_waits_for_it() -> None:
+    js = read("app.js")
+    send = function_body(js, "sendLine")
+    assert "const fillers = playFillers(turn);" in send  # started before the turn is awaited
+    assert send.index("playFillers(turn)") < send.index("await turn")
+    after = function_body(js, "playReplyThenListen")
+    assert after.index("await fillers;") < after.index("playClip(latestAudio)")
+
+
+def test_at_most_two_fillers_and_none_without_clips() -> None:
+    body = function_body(read("app.js"), "playFillers")
+    assert "for (let played = 0; played < 2; played++) {" in body
+    assert "if (fillerClips.length === 0 || (played > 0 && replyReady)) return;" in body
+    assert "await clipStopped();" in body  # listening stays paused until each clip ends
+
+
+def test_filler_is_never_the_same_as_the_last_one() -> None:
+    body = function_body(read("app.js"), "pickFiller")
+    assert "Math.random()" in body
+    assert "if (fillerClips.length > 1 && i === lastFiller) {" in body
+
+
+def test_filler_never_appears_on_the_page_as_a_reply() -> None:
+    js = read("app.js")
+    for name in ("playFillers", "pickFiller"):
+        body = function_body(js, name)
+        assert "addBubble" not in body and "textContent" not in body
+
+
+def test_reply_autoplays_after_typed_lines_but_only_a_call_listens() -> None:
+    js = read("app.js")
+    after = function_body(js, "playReplyThenListen")
+    # The reply plays whether the line was typed or heard (no voice call needed)
+    assert "if (ok && latestAudio) {" in after
+    assert "callActive" not in after
+    # Listening only ever starts during a voice call, so a typed line never starts it
+    assert "if (!callActive || paused || ended) return;" in function_body(js, "startListening")

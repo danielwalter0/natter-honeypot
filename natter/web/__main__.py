@@ -11,8 +11,10 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI
 
+from natter.filler import FILLER_FOLDER, load_filler_urls
 from natter.live import SPEECH_CAP
 from natter.live_wiring import make_live_call
+from natter.providers import groq_speech
 from natter.providers.errors import MissingKeyError
 from natter.web.server import create_app
 from natter.web_wiring import make_replay_call
@@ -40,8 +42,11 @@ def build_app(live: bool) -> FastAPI:
     """The app for one mode. A missing key in live mode raises MissingKeyError."""
     if live:
         print(SPEND_WARNING)
+        # The filler clips are read once, here. FILLER_FOLDER is looked up at call
+        # time too, so tests can point it at a temporary folder
+        filler = load_filler_urls(FILLER_FOLDER, groq_speech.NAME)
         # make_live_call is looked up at call time, so tests can swap it for a fake
-        return create_app("live", make_live_call, None, SPEECH_CAP, PORT)
+        return create_app("live", make_live_call, None, SPEECH_CAP, PORT, filler)
     _, lines = make_replay_call()
     # Reset builds a fresh replay call; the lines never change, so they are passed once
     return create_app("replay", lambda: make_replay_call()[0], lines, None, PORT)

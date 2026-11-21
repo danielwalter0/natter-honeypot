@@ -94,8 +94,9 @@ def create_app(
     lines: list[str] | None,
     speech_cap: int | None,
     port: int = 8000,
+    filler: list[str] | None = None,
 ) -> FastAPI:
-    """Build the app."""
+    """Build the app. filler: WAV data URLs for the live page's filler clips."""
     # No /docs, /redoc or /openapi.json
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     holder = CallHolder(make_call(), lines, 0, threading.Lock())
@@ -150,7 +151,10 @@ def create_app(
     @app.get("/api/mode")
     def get_mode() -> dict[str, object]:
         total = len(lines) if lines is not None else None
-        return {"mode": mode, "speech_cap": speech_cap, "lines_total": total}
+        info: dict[str, object] = {"mode": mode, "speech_cap": speech_cap, "lines_total": total}
+        if mode == "live":
+            info["filler"] = filler or []  # loaded once at start; [] means no filler
+        return info
 
     @app.post("/api/step", response_model=None)
     def step() -> Frame | JSONResponse:
