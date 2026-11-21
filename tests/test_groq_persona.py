@@ -5,7 +5,7 @@ import pytest
 from natter.picker import Goal
 from natter.providers import groq_persona, reply_tidy
 from natter.providers.errors import MissingKeyError, PersonaError
-from natter.providers.groq_persona import SYSTEM_PROMPT, GroqPersona, build_messages
+from natter.providers.groq_persona import EXAMPLES, SYSTEM_PROMPT, GroqPersona, build_messages
 from natter.schema import Turn
 from tests.fake_clients import FakeFactory, groq_response
 
@@ -159,3 +159,30 @@ def test_prompt_has_own_number_and_small_talk_rules() -> None:
     assert (
         "mention the kettle, your glasses or the cat at most once in a whole call" in SYSTEM_PROMPT
     )
+    # Rule 3: no aside repeats in a call; the usual topics are each allowed once
+    assert (
+        "Never mention the same person or thing as an aside more than once in a whole call."
+        in SYSTEM_PROMPT
+    )
+    assert (
+        "The grandson, the neighbour, tea, the garden and the radio are each allowed once, "
+        "so vary them." in SYSTEM_PROMPT
+    )
+
+
+def test_prompt_has_react_first_rule_and_short_examples() -> None:
+    assert "First react to what the caller just said, in one short natural sentence." in (
+        SYSTEM_PROMPT
+    )
+    assert "Then at most one small, ordinary aside." in SYSTEM_PROMPT
+    assert "Never ask the caller to repeat or spell out something they have not said yet." in (
+        SYSTEM_PROMPT
+    )
+    assert "never to be copied word for word" in SYSTEM_PROMPT  # examples are labelled as such
+    assert len(EXAMPLES) == 6
+    for caller, reply in EXAMPLES:
+        assert caller in SYSTEM_PROMPT and reply in SYSTEM_PROMPT
+        assert len(caller) < reply_tidy.MAX_PERSONA_CHARS
+        assert len(reply) < reply_tidy.MAX_PERSONA_CHARS
+        assert not any(ch.isdigit() for ch in caller + reply)
+        assert not any(ch in "-\u2013\u2014" for ch in caller + reply)  # hyphen, en, em dash
