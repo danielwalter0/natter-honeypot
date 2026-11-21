@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from natter.audio_cache import AudioNotSaved
 from natter.cache import CacheMiss, checked_reply
 from natter.check import Rejection
 from natter.picker import Goal
@@ -32,6 +33,12 @@ MAX_EXTRACTIONS = 20  # paid Claude calls per call
 MAX_SECONDS = 600  # longest call
 MAX_LINE_CHARS = 2000  # same as the Turn text limit
 SPEECH_CAP = 15  # real speech requests per call; used by the later wiring (make_live_call)
+TIMING_STAGES = ("extraction_ms", "persona_ms", "speech_ms", "total_ms")  # in log order
+
+
+def _ms_since(start: float) -> int:
+    """Whole milliseconds since a time.perf_counter() reading."""
+    return round((time.perf_counter() - start) * 1000)
 
 
 @dataclass(frozen=True)
@@ -98,6 +105,8 @@ class LiveCall:
         self.ended = False
         self.started: float | None = None  # set by the first say(), not here
         self._lock = threading.Lock()  # one say() at a time
+        # Whole milliseconds per stage for the last say(); numbers only, never text
+        self.last_timings: dict[str, int] = dict.fromkeys(TIMING_STAGES, 0)
 
     def _reply(
         self,
@@ -140,7 +149,11 @@ class LiveCall:
     def say(self, line: str) -> LiveReply:
         """Take one scammer line and return the persona's reply. Never raises."""
         with self._lock:
-            return self._say(line)
+            self.last_timings = dict.fromkeys(TIMING_STAGES, 0)  # a skipped stage stays 0
+            start = time.perf_counter()
+            reply = self._say(line)
+            self.last_timings["total_ms"] = _ms_since(start)
+            return reply
 
     def _say(self, line: str) -> LiveReply:
         # 1. Caps: once over, the call is over, and no provider is touched
@@ -166,7 +179,9 @@ class LiveCall:
             return self._reply(None, None, ["line rejected: not valid text"])
         # 3-4. The scammer's turn, then the (possibly failing) extraction
         add_scammer_line(self.state, line.strip())
+        start = time.perf_counter()
         rejections, notes = self._run_extraction()
+        self.last_timings["extraction_ms"] = _ms_since(start)
         # 5. That turn may have used the last of the turn budget: no reply then
         if len(self.state.transcript) >= self.max_turns:
             self.ended = True
@@ -174,6 +189,7 @@ class LiveCall:
         # 6. Persona. checked_reply rejects non-text and over-long output; tidy_reply
         # is defence in depth, so any persona (not only GroqPersona) is tidied.
         goal = choose_goal(self.state)
+        start = time.perf_counter()
         try:
             raw = self.persona.reply(snapshot(self.state.transcript), goal)
             text = tidy_reply(checked_reply(raw), self.state.transcript)
@@ -185,17 +201,23 @@ class LiveCall:
             spoken = prepare_speech_text(text, DIRECTION)
             goal = None  # she did not really ask, so previous_goal resets
             notes.append("persona failed: " + safe_error(exc))
+        self.last_timings["persona_ms"] = _ms_since(start)
         add_persona_reply(self.state, goal, text)
         if len(self.state.transcript) >= self.max_turns:
             self.ended = True  # her reply used the last turn: the caller should know now
         # 7. Speech: any failure leaves a text-only reply
         audio: bytes | None = None
+        start = time.perf_counter()
         try:
             audio = self.speech.speak(spoken)
         except SpeechBudgetUsed:
             notes.append("speech budget used up")
+        except AudioNotSaved as exc:
+            audio = exc.audio  # made and paid for, so it still plays this once
+            notes.append(str(exc))  # "audio not saved: ..." with a reason we wrote
         except Exception as exc:
             notes.append("speech failed: " + safe_error(exc))
+        self.last_timings["speech_ms"] = _ms_since(start)
         return self._reply(text, goal, notes, audio=audio, rejections=rejections)
 
 

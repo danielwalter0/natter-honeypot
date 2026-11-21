@@ -30,7 +30,9 @@ def build_live_call(
     (a refused line does not wait). LiveCall gets the same budget object to read its count.
     """
     budget = BudgetedSpeech(ThrottledSpeech(speech, Throttle(throttle_gap_s)), speech_cap)
-    stack = CachedSpeech(budget, AudioCache(audio_dir, "record"), speech_key)
+    # evict_oldest: a long session deletes its oldest WAVs instead of filling the folder
+    cache = AudioCache(audio_dir, "record", evict_oldest=True)
+    stack = CachedSpeech(budget, cache, speech_key)
     return LiveCall(persona, extractor, stack, budget=budget)
 
 

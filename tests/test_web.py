@@ -1,5 +1,7 @@
 """Tests for the web server. No network, no keys: everything runs on fakes or replay."""
 
+import re
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -274,3 +276,27 @@ def test_live_mode_with_no_filler_sends_an_empty_list() -> None:
 def test_replay_mode_never_sends_filler() -> None:
     app = create_app("replay", lambda: make_replay_call()[0], ["x"], None, filler=["data:x"])
     assert "filler" not in client(app).get("/api/mode").json()
+
+
+# ---------------------------------------------------------------- turn timing log
+
+TIMING_LINE = r"turn timing: extraction_ms=\d+ persona_ms=\d+ speech_ms=\d+ total_ms=\d+"
+
+
+def test_each_live_turn_prints_one_timing_line_of_numbers_only(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c = client(live_app(persona=RaisingPersona(), speech=RaisingSpeech()))
+    c.post("/api/say", json={"line": HOSTILE_TEXT}, headers=ORIGIN)
+    c.post("/api/say", json={"line": LINES[0]}, headers=ORIGIN)
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line.startswith("turn timing:")]
+    assert len(lines) == 2
+    assert all(re.fullmatch(TIMING_LINE, line) for line in lines)
+    # Nothing else was printed, so no line text, key or error message can be in the log
+    assert out.splitlines() == lines
+
+
+def test_replay_turns_print_no_timing(capsys: pytest.CaptureFixture[str]) -> None:
+    client(replay_app()).post("/api/step", headers=ORIGIN)
+    assert "turn timing" not in capsys.readouterr().out

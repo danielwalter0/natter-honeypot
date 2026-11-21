@@ -1,10 +1,11 @@
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
 
 from natter import audio_cache
-from natter.audio_cache import AudioCache, CachedSpeech, is_wav
+from natter.audio_cache import AudioCache, AudioNotSaved, CachedSpeech, is_wav
 from natter.cache import CacheMiss
 from natter.providers.fakes import FakeSpeech
 from natter.providers.replay_only import ReplayOnly
@@ -123,3 +124,60 @@ def test_has_only_for_a_loadable_wav(tmp_path: Path) -> None:
 def test_has_still_rejects_a_bad_key(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         AudioCache(tmp_path, "record").has("../x")
+
+
+# ---- eviction (live cache only) and audio that cannot be saved
+
+
+def test_eviction_removes_the_oldest_wavs_until_the_new_one_fits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(audio_cache, "MAX_FOLDER_BYTES", len(WAV) * 3)
+    cache = AudioCache(tmp_path, "record", evict_oldest=True)
+    keys = [key_fn("a", str(i)) for i in range(3)]
+    for age, key in zip((300, 100, 200), keys, strict=True):  # keys[0] is the oldest
+        cache.store(key, WAV)
+        os.utime(cache.path_for(key), (1_000 - age, 1_000 - age))
+    cache.store(key_fn("a", "new"), WAV)
+    left = {f.name for f in tmp_path.glob("*.wav")}
+    assert left == {f"{k}.wav" for k in (keys[1], keys[2], key_fn("a", "new"))}
+
+
+def test_without_eviction_a_full_folder_is_still_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(audio_cache, "MAX_FOLDER_BYTES", len(WAV))
+    cache = AudioCache(tmp_path, "record")  # the recorders' cache: never deletes
+    cache.store(key_fn("a", "1"), WAV)
+    with pytest.raises(ValueError, match="audio folder is full"):
+        cache.store(key_fn("a", "2"), WAV)
+    assert len(list(tmp_path.glob("*.wav"))) == 1
+
+
+@pytest.mark.parametrize("protected", ["scenarios", "assets"])
+def test_eviction_is_refused_under_scenarios_and_assets(tmp_path: Path, protected: str) -> None:
+    with pytest.raises(ValueError, match="never evict"):
+        AudioCache(tmp_path / protected / "x" / "audio", "record", evict_oldest=True)
+
+
+def test_audio_made_but_not_saved_is_handed_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(audio_cache, "MAX_FOLDER_BYTES", 0)  # nothing fits
+    speech = CachedSpeech(FakeSpeech(), AudioCache(tmp_path, "record"), key_fn)
+    with pytest.raises(AudioNotSaved) as info:
+        speech.speak("hi")
+    assert info.value.audio == WAV
+    assert str(info.value) == "audio not saved: audio folder is full"
+
+
+def test_bad_audio_is_never_handed_back(tmp_path: Path) -> None:
+    class NotWav:
+        name = "not-wav"
+
+        def speak(self, text: str) -> bytes:
+            return b"not a wav at all"
+
+    speech = CachedSpeech(NotWav(), AudioCache(tmp_path, "record"), key_fn)
+    with pytest.raises(ValueError, match="not a WAV"):  # a plain error, no audio attached
+        speech.speak("hi")

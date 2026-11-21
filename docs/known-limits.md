@@ -78,7 +78,9 @@
 - With an odd turn cap the last scammer line still costs one paid extraction but gets no reply (same as `run_session`).
 - `LiveCall` strips leading and trailing spaces from each line and `run_session` does not, so the two transcripts differ for padded lines.
 - The lock around `say()` is untested (removing it passes every test).
-- If the live audio folder (`live_cache/audio`) reaches `AudioCache`'s 8 MB cap, the real speech request is still made (and counts against the quota), then `store` raises "audio folder is full". The reply loses its audio and carries a "speech failed" note. Each later new line does the same, so delete old WAVs from `live_cache/audio` to carry on.
+- The live audio folder (`live_cache/audio`) deletes its oldest WAVs (by modified time) when a new one would go over the 8 MB cap, so a long session, or many sessions, never fills it. Only the live cache does this (`evict_oldest=True` in `live_wiring.py`); `AudioCache` refuses eviction for any folder under `scenarios/` or `assets/`, and the recorder scripts never evict. "Oldest" means oldest written, not least recently played: a cache hit does not touch the file, so a line that keeps coming back can still be deleted and then costs one more speech request.
+- If good audio is made but cannot be saved (disk error, or a full folder where eviction is off), `CachedSpeech` raises `AudioNotSaved` carrying the audio. `LiveCall` plays it that once, with the note "audio not saved: <reason>" (an OS error shows its type only). The next time the same line is said, it costs another request. In the recorder scripts the same error stops the run.
+- Audio that is not a WAV, or over 1 MB, is still dropped and never played (note "speech failed: ValueError").
 - The live audio is never played or saved by the terminal loop (`live_cli.py`); only its size is printed. WAVs exist only in the speech cache under `live_cache/`.
 - A scammer line that is the literal text `quit` ends the terminal loop instead of being sent.
 - `python -m natter.live` runs `live.py` as `__main__` and imports `live_cli`, which imports `natter.live` again as a normal module, so the module is loaded twice. This is harmless (the loop uses the second copy) but would surprise anyone adding module-level state to `live.py`.
@@ -117,8 +119,15 @@
 - Fillers are sound only. They are not part of the transcript or the dossier, they never become a bubble, and the page never shows or claims them as the model's reply. The extractor never sees them.
 - The clips are recorded once by `scripts/record_filler.py` into `assets/filler/` and read once when `python -m natter.web --live` starts. With no folder, or a broken clip, that clip is skipped and the page works without it; restart the server after recording.
 - The clips are named by the speech key (provider name plus prepared text), so a change to a filler line, the voice, or `prepare_speech_text` makes the old clips unused. Re-record them, and the committed-folder test then fails until the old WAVs are removed.
-- At most two fillers play in a row. A reply that takes longer still leaves a silence after the second filler.
+- Exactly one filler plays per line. A reply that takes longer than the filler still leaves a silence between the filler and the reply.
 - Typed lines get the same audio as heard ones: a filler, then the reply once the filler ends, through the shared player. A typed line never turns the microphone on; during a voice call, listening resumes after the reply as usual. The Send click is what lets the browser play the audio, so typing a line and pressing Enter counts too.
 - The Send button comes back as soon as the reply arrives, while the filler or reply may still be playing. A second typed line then cuts that clip off with its own filler.
-- Clicking Play on a bubble while a filler plays cuts the filler off; if the reply is still not ready, the second filler then cuts off that clip.
+- Clicking Play on a bubble while a filler plays cuts the filler off; the reply then plays as soon as it is ready.
 - The `/api/mode` answer in live mode carries all eight clips as base64 (roughly 1 MB in all), once per page load.
+
+## Turn timing log (live web server)
+
+- Each live turn prints one line to the server terminal: `turn timing: extraction_ms=.. persona_ms=.. speech_ms=.. total_ms=..`. Stage names and whole milliseconds only, never line text, keys or error messages. A stage that did not run (a rejected line, the turn cap) shows 0. Replay prints nothing, and the page never sees the numbers.
+- `speech_ms` includes the throttle's wait (up to 7 s after the previous request), so a fast reply right after another one can look slow. A cache hit shows close to 0.
+- `total_ms` covers `LiveCall.say()` only, not the time waiting for the lock, building the frame or sending it, nor the filler and audio on the page.
+- The line is printed, not logged, so it cannot be turned off or sent to a file without a code change.

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from natter import live_wiring
+from natter import audio_cache, live_wiring
 from natter.audio_cache import CachedSpeech
 from natter.live_wiring import build_live_call, make_live_call
 from natter.providers.errors import MissingKeyError
@@ -71,3 +71,35 @@ def test_make_live_call_uses_the_three_providers(
     assert call.budget is not None and call.budget.max_requests == 3
     assert call.persona is persona and call.extractor is extractor  # not swapped
     assert call.say(LINES[0]).audio is not None
+
+
+# ---- the live audio folder must never fill up and silence the replies
+
+
+def test_a_full_live_audio_folder_still_gives_every_reply_audio(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wav = FakeSpeech().speak("x")
+    monkeypatch.setattr(audio_cache, "MAX_FOLDER_BYTES", len(wav) * 2)  # room for two clips
+    persona = FakePersona(lines=["Oh hello dear.", "Who is it?", "Oh my.", "Go on then."])
+    call = build(tmp_path, persona=persona)
+    replies = [call.say(line) for line in LINES + ["One more."]]
+    assert all(r.audio is not None for r in replies)  # the 3rd and 4th used to be text only
+    assert all(r.notes == [] for r in replies)
+    assert len(list((tmp_path / "audio").glob("*.wav"))) == 2  # the oldest were removed
+
+
+def test_audio_that_cannot_be_saved_is_still_played_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    call = build(tmp_path)
+    assert isinstance(call.speech, CachedSpeech)
+
+    def broken_store(key: str, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(call.speech.cache, "store", broken_store)
+    reply = call.say(LINES[0])
+    assert reply.audio is not None  # made and paid for, so it is not thrown away
+    assert reply.notes == ["audio not saved: OSError"]  # type only, never the OS message
+    assert reply.speech_requests_used == 1

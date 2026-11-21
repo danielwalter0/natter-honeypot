@@ -141,6 +141,10 @@ def create_app(
         turns_before = len(call.state.transcript)
         previous_goal = call.state.previous_goal
         reply = call.say(line)
+        if mode == "live":
+            # One terminal line per turn: our own stage names and whole numbers, no text
+            stages = " ".join(f"{name}={ms}" for name, ms in call.last_timings.items())
+            print(f"turn timing: {stages}", flush=True)
         return build_frame(call.state, reply, turns_before, previous_goal, speech_cap)
 
     # The page files: read once, then served from memory. No path comes from the request.
