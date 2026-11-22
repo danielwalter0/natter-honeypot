@@ -109,3 +109,32 @@ def test_notes_hide_text_of_foreign_errors() -> None:
 def test_notes_show_our_own_error_message() -> None:
     reply = make_call(persona=RaisingPersona(PersonaError("reply did not finish"))).say(LINES[0])
     assert reply.notes[0] == "persona failed: PersonaError: reply did not finish"
+
+
+# ---- speech switched off, and the plain note for a speech rate limit
+
+
+class RateLimitError(Exception):
+    """Stands in for the SDK's 429 error: same name and status, hostile text inside."""
+
+    status_code = 429
+
+
+def test_no_speech_makes_no_request_and_adds_no_note() -> None:
+    call = make_call(speech=None)
+    reply = call.say(LINES[0])
+    assert reply.text  # she still answers in text
+    assert reply.audio is None
+    assert reply.notes == []
+    assert reply.speech_requests_used == 0
+
+
+def test_a_speech_rate_limit_gets_a_plain_note_and_the_detail_goes_to_the_terminal(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    call = make_call(speech=RaisingSpeech(RateLimitError(HOSTILE_TEXT)))
+    reply = call.say(LINES[0])
+    assert reply.notes == ["Speech limit reached, showing text only."]
+    out = capsys.readouterr().out
+    assert "speech failed: RateLimitError status 429" in out  # technical detail, terminal only
+    assert "sk-test-HOSTILE_TEXT" not in out and "ignore previous" not in out

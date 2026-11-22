@@ -74,7 +74,13 @@ def test_live_prints_the_spend_cap_warning(
     run = FakeRun()
     web_main.main(["--live"], run=run)
     assert "No daily spend cap" in capsys.readouterr().out
-    expected = {"mode": "live", "speech_cap": 15, "lines_total": None, "filler": []}
+    expected = {
+        "mode": "live",
+        "speech_cap": 15,
+        "lines_total": None,
+        "filler": [],
+        "speech_off": False,
+    }
     assert mode_of(run.calls[0][0]) == expected
 
 
@@ -95,4 +101,31 @@ def test_live_loads_the_recorded_filler_once_at_start(
 def test_replay_and_live_together_is_a_usage_error() -> None:
     with pytest.raises(SystemExit) as stop:
         web_main.main(["--replay", "--live"], run=FakeRun())
+    assert stop.value.code == 2
+
+
+def test_live_no_speech_turns_speech_and_filler_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: list[bool] = []
+
+    def fake_live_call(speech: bool = True) -> LiveCall:
+        seen.append(speech)
+        return make_call(speech=None)
+
+    monkeypatch.setattr(web_main, "make_live_call", fake_live_call)
+    monkeypatch.setattr(web_main, "FILLER_FOLDER", tmp_path)
+    wav = FakeSpeech().speak("x")
+    for text in filler_texts():  # clips exist, but must not be sent
+        (tmp_path / f"{speech_key(groq_speech.NAME, text)}.wav").write_bytes(wav)
+    run = FakeRun()
+    web_main.main(["--live", "--no-speech"], run=run)
+    info = mode_of(run.calls[0][0])
+    assert seen and all(s is False for s in seen)  # every call is built without speech
+    assert info["speech_off"] is True and info["speech_cap"] is None and info["filler"] == []
+
+
+def test_no_speech_without_live_is_a_usage_error() -> None:
+    with pytest.raises(SystemExit) as stop:
+        web_main.main(["--no-speech"], run=FakeRun())
     assert stop.value.code == 2

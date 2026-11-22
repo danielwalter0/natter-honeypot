@@ -89,6 +89,7 @@ class InfoRequested(StrEnum):
     FULL_CARD_NUMBER = "full_card_number"
     PASSWORD = "password"  # noqa: S105  enum label for what was asked, not a secret
     REMOTE_ACCESS = "remote_access"
+    DATE_OF_BIRTH = "date_of_birth"
     OTHER = "other"
 
 

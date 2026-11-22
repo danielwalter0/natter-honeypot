@@ -30,3 +30,9 @@ def test_sourced_rejects_extra_key() -> None:
     Sourced[str].model_validate(payload)  # the valid payload passes
     with pytest.raises(pydantic.ValidationError):
         Sourced[str].model_validate({**payload, "unknown": 1})
+
+
+def test_a_date_of_birth_request_has_its_own_label() -> None:
+    from natter.schema import InfoRequested
+
+    assert InfoRequested("date_of_birth") is InfoRequested.DATE_OF_BIRTH

@@ -103,3 +103,19 @@ def test_audio_that_cannot_be_saved_is_still_played_once(
     assert reply.audio is not None  # made and paid for, so it is not thrown away
     assert reply.notes == ["audio not saved: OSError"]  # type only, never the OS message
     assert reply.speech_requests_used == 1
+
+
+def test_make_live_call_without_speech_never_builds_the_speech_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def no_speech_allowed() -> FakeSpeech:
+        raise AssertionError("GroqSpeech must not be built")
+
+    monkeypatch.setattr(live_wiring, "ClaudeExtractor", lambda: FakeExtractor(Dossier()))
+    monkeypatch.setattr(live_wiring, "GroqPersona", lambda: FakePersona())
+    monkeypatch.setattr(live_wiring, "GroqSpeech", no_speech_allowed)
+    call = make_live_call(tmp_path / "audio", speech=False)
+    assert call.speech is None and call.budget is None
+    reply = call.say(LINES[0])
+    assert reply.audio is None and reply.notes == []
+    assert not (tmp_path / "audio").exists()  # no audio folder is even made

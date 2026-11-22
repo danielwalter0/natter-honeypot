@@ -36,7 +36,15 @@ def build_live_call(
     return LiveCall(persona, extractor, stack, budget=budget)
 
 
-def make_live_call(audio_dir: Path = LIVE_AUDIO, speech_cap: int = SPEECH_CAP) -> LiveCall:
+def make_live_call(
+    audio_dir: Path = LIVE_AUDIO, speech_cap: int = SPEECH_CAP, speech: bool = True
+) -> LiveCall:
     """The real providers. Each reads its own key from the environment; a missing key
-    raises MissingKeyError here, before any call is made."""
+    raises MissingKeyError here, before any call is made.
+
+    speech=False (--no-speech): no speech provider, no budget and no audio folder,
+    so no speech request can ever be made.
+    """
+    if not speech:
+        return LiveCall(GroqPersona(), ClaudeExtractor(), None)
     return build_live_call(GroqPersona(), ClaudeExtractor(), GroqSpeech(), audio_dir, speech_cap)

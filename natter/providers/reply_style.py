@@ -28,7 +28,11 @@ SERVICE = re.compile(
     r"|\bwhat (?:should|shall|do) i do next\b"
     r"|\bwhat (?:details|information|info) do you need\b"
     r"|\bhow (?:else )?can i help\b"
-    r"|\bis there anything else\b",
+    r"|\bis there anything else\b"
+    # Offers to list or explain, after an off-topic question
+    r"|\b(?:do you )?want the full list\b"
+    r"|\bshall i list\b"
+    r"|\bwould you like me to explain\b",
     re.IGNORECASE,
 )
 

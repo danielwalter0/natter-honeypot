@@ -33,6 +33,7 @@ MAX_EXTRACTIONS = 20  # paid Claude calls per call
 MAX_SECONDS = 600  # longest call
 MAX_LINE_CHARS = 2000  # same as the Turn text limit
 SPEECH_CAP = 15  # real speech requests per call; used by the later wiring (make_live_call)
+SPEECH_LIMIT_NOTE = "Speech limit reached, showing text only."  # shown on a speech 429
 TIMING_STAGES = ("extraction_ms", "persona_ms", "speech_ms", "total_ms")  # in log order
 
 
@@ -78,7 +79,7 @@ class LiveCall:
         self,
         persona: Persona,
         extractor: Extractor,
-        speech: Speech,
+        speech: Speech | None,  # None: speech switched off (--no-speech)
         *,
         budget: BudgetedSpeech | None = None,  # the BudgetedSpeech inside `speech`, for counting
         max_turns: int = MAX_TURNS,
@@ -146,6 +147,24 @@ class LiveCall:
         except Exception as exc:
             return ([], ["extraction failed: " + safe_error(exc)])
 
+    def _speak(self, speech: Speech, spoken: str, notes: list[str]) -> bytes | None:
+        """Step 7: the audio, or None. A failure adds a note instead of raising."""
+        try:
+            return speech.speak(spoken)
+        except SpeechBudgetUsed:
+            notes.append("speech budget used up")
+        except AudioNotSaved as exc:
+            notes.append(str(exc))  # "audio not saved: ..." with a reason we wrote
+            return exc.audio  # made and paid for, so it still plays this once
+        except Exception as exc:
+            if getattr(exc, "status_code", None) == 429:
+                # Plain words for the page; the type and status go to the terminal only
+                notes.append(SPEECH_LIMIT_NOTE)
+                print("speech failed: " + safe_error(exc), flush=True)
+            else:
+                notes.append("speech failed: " + safe_error(exc))
+        return None
+
     def say(self, line: str) -> LiveReply:
         """Take one scammer line and return the persona's reply. Never raises."""
         with self._lock:
@@ -208,15 +227,8 @@ class LiveCall:
         # 7. Speech: any failure leaves a text-only reply
         audio: bytes | None = None
         start = time.perf_counter()
-        try:
-            audio = self.speech.speak(spoken)
-        except SpeechBudgetUsed:
-            notes.append("speech budget used up")
-        except AudioNotSaved as exc:
-            audio = exc.audio  # made and paid for, so it still plays this once
-            notes.append(str(exc))  # "audio not saved: ..." with a reason we wrote
-        except Exception as exc:
-            notes.append("speech failed: " + safe_error(exc))
+        if self.speech is not None:  # None: speech is switched off, so no request, no note
+            audio = self._speak(self.speech, spoken, notes)
         self.last_timings["speech_ms"] = _ms_since(start)
         return self._reply(text, goal, notes, audio=audio, rejections=rejections)
 

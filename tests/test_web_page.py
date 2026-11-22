@@ -214,3 +214,9 @@ def test_reply_autoplays_after_typed_lines_but_only_a_call_listens() -> None:
     assert "callActive" not in after
     # Listening only ever starts during a voice call, so a typed line never starts it
     assert "if (!callActive || paused || ended) return;" in function_body(js, "startListening")
+
+
+def test_page_shows_speech_off_from_the_mode_answer() -> None:
+    js = read("app.js")
+    assert "speechOff = info.speech_off === true;" in js
+    assert '"Speech off: text only."' in js
