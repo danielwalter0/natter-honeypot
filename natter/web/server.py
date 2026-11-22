@@ -158,6 +158,7 @@ def create_app(
         info: dict[str, object] = {"mode": mode, "speech_cap": speech_cap, "lines_total": total}
         if mode == "live":
             info["filler"] = filler or []  # loaded once at start; [] means no filler
+            info["speech_off"] = speech_cap is None  # live with no cap: --no-speech
         return info
 
     @app.post("/api/step", response_model=None)

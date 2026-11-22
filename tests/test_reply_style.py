@@ -131,3 +131,18 @@ def test_safe_stall_is_never_changed_by_the_guards() -> None:
     # The stall says "love"; the guards run before the stall can be chosen, never on it
     out = tidy_reply("Read it to me: 4929 1234 5678 9012, love.", call("Hello, love."))
     assert out == SAFE_STALL
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        ("Scones, flour and butter. Do you want the full list?", "Scones, flour and butter."),
+        ("Oh, all sorts. Shall I list them?", "Oh, all sorts."),
+        (
+            "It's to do with the weather. Would you like me to explain?",
+            "It's to do with the weather.",
+        ),
+    ],
+)
+def test_offers_to_list_or_explain_are_dropped(before: str, after: str) -> None:
+    assert style_guard(before, call()) == after

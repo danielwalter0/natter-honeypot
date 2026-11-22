@@ -38,6 +38,7 @@ let linesDone = 0; // replay only: how many have been played
 let ended = false; // true once the call is over; only Reset works then
 let currentAudio = null; // the ONE audio player for the whole page, made on first Play
 let latestAudio = null; // the audio of the newest reply (null if it has none)
+let speechOff = false; // live only: true when the server runs with --no-speech
 
 // ---- The owner's block: ONE dossier fact as one list item.
 // It must: create a list item with document.createElement("li"), set its text
@@ -269,8 +270,13 @@ function showMode() {
   replayControls.hidden = mode !== "replay";
   liveForm.hidden = mode !== "live";
   replayProgress.textContent = mode === "replay" ? "0 of " + linesTotal + " lines" : "";
-  speechLabel.textContent = mode === "live"
-    ? "0 speech requests used" : "Recorded audio: no budget used.";
+  // Live with speech off (rehearsals, evaluation runs): text only, so say so
+  if (mode === "live" && speechOff) {
+    speechLabel.textContent = "Speech off: text only.";
+  } else {
+    speechLabel.textContent = mode === "live"
+      ? "0 speech requests used" : "Recorded audio: no budget used.";
+  }
 }
 
 // ==== Voice input (live mode only) ====
@@ -433,6 +439,8 @@ async function start() {
     linesTotal = info.lines_total;
     // Live mode sends the filler clips; replay sends none, so the list stays empty
     fillerClips = Array.isArray(info.filler) ? info.filler : [];
+    // Only an exact true counts; anything else leaves speech shown as on
+    speechOff = info.speech_off === true;
     showMode();
     setBusy(false);
   } catch (error) {

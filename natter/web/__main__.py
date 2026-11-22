@@ -35,11 +35,22 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--replay", action="store_true", help="recorded call, no keys (default)")
     group.add_argument("--live", action="store_true", help="type scammer lines; needs API keys")
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--no-speech", action="store_true", help="live only: text replies, no speech requests"
+    )
+    args = parser.parse_args(argv)
+    if args.no_speech and not args.live:
+        parser.error("--no-speech needs --live")  # exits with code 2
+    return args
 
 
-def build_app(live: bool) -> FastAPI:
+def build_app(live: bool, speech: bool = True) -> FastAPI:
     """The app for one mode. A missing key in live mode raises MissingKeyError."""
+    if live and not speech:
+        # Rehearsals and evaluation runs: no speech budget, no cap and no filler clips.
+        # A speech_cap of None tells the page that speech is off.
+        print("Speech is off: replies are text only.")
+        return create_app("live", lambda: make_live_call(speech=False), None, None, PORT, [])
     if live:
         print(SPEND_WARNING)
         # The filler clips are read once, here. FILLER_FOLDER is looked up at call
@@ -60,7 +71,7 @@ def main(argv: list[str] | None = None, run: Callable[..., Any] = uvicorn.run) -
         reconfigure(encoding="utf-8", errors="replace")
     args = parse_args(argv)
     try:
-        app = build_app(args.live)
+        app = build_app(args.live, speech=not args.no_speech)
     except MissingKeyError as exc:  # the text names the variable, never a key
         print(exc)
         raise SystemExit(1) from None

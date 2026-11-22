@@ -188,6 +188,7 @@
         "full_card_number",
         "password",
         "remote_access",
+        "date_of_birth",
         "other"
       ],
       "title": "InfoRequested",
