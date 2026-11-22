@@ -1,6 +1,7 @@
 """Tests for the command-line glue."""
 
 import io
+import json
 import re
 import socket
 import sys
@@ -22,7 +23,7 @@ from natter.__main__ import (
 )
 from natter.cache import Cache, CachedExtractor, CachedPersona, CacheMiss
 from natter.picker import Goal
-from natter.providers import claude_extractor, groq_persona
+from natter.providers import claude_extractor
 from natter.schema import Dossier, Evidence, Report, ScamType, Sourced, Turn
 from natter.session import run_session
 
@@ -58,7 +59,7 @@ def test_save_report_round_trips(tmp_path: Path) -> None:
 class SpyPersona:
     """Stands in for the recorded Groq persona: same name, fixed reply, counts calls."""
 
-    name = f"groq:{groq_persona.DEFAULT_MODEL}"
+    name = f"groq:{natter_main.RECORDED_PERSONA_MODEL}"  # the name replay looks up
 
     def __init__(self) -> None:
         self.calls = 0
@@ -206,3 +207,12 @@ def test_main_switches_stdout_to_utf8_when_it_can(
     monkeypatch.setattr(sys, "stdout", Console())
     main([])
     assert calls == [{"encoding": "utf-8", "errors": "replace"}]
+
+
+def test_replay_names_the_model_the_cassettes_were_recorded_with() -> None:
+    # The live default can change; replay must still find the committed cassettes
+    names = {
+        json.loads(f.read_text(encoding="utf-8"))["provider"]
+        for f in natter_main.CACHE.glob("*.json")
+    }
+    assert f"groq:{natter_main.RECORDED_PERSONA_MODEL}" in names

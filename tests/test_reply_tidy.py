@@ -222,14 +222,6 @@ def test_reply_may_repeat_the_callers_number(monkeypatch: pytest.MonkeyPatch) ->
     assert persona(monkeypatch, raw).reply(caller(CALLER_NUMBER), None) == raw
 
 
-def test_prompt_has_the_variety_rules() -> None:
-    assert "Do not mention the same tangent twice in a row." in SYSTEM_PROMPT
-    assert "Vary your excuses." in SYSTEM_PROMPT
-    assert "If you have already asked for something, do something else this turn." in (
-        SYSTEM_PROMPT
-    )
-
-
 # --- NATTER_RAW_LOG: the raw reply, before any tidying, for debugging ---
 
 

@@ -118,9 +118,8 @@ def test_missing_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "GROQ_API_KEY" in str(info.value)
 
 
-def test_prompt_has_never_refuse_and_never_repeat_rules() -> None:
+def test_prompt_has_never_refuse_rule() -> None:
     assert "You never refuse and never say you cannot help." in SYSTEM_PROMPT
-    assert "Never ask the same thing in the same words twice in a row." in SYSTEM_PROMPT
 
 
 # --- guard the safety rules in the persona prompt (key phrase of each) ---
@@ -138,46 +137,23 @@ def test_persona_prompt_keeps_safety_rule(phrase: str) -> None:
     assert phrase in SYSTEM_PROMPT
 
 
-def test_prompt_has_phone_and_spelling_rules() -> None:
+def test_prompt_has_phone_number_rules() -> None:
     assert "read it back to check you have it right" in SYSTEM_PROMPT
     assert "Never ask the caller to call you, and never give out a number yourself." in (
         SYSTEM_PROMPT
     )
-    assert "Use British English spelling and phrasing" in SYSTEM_PROMPT
-    assert "Find a new angle each time." in SYSTEM_PROMPT
 
 
-def test_prompt_has_own_number_and_small_talk_rules() -> None:
-    # Rule 1: her own number is never given; she deflects and turns back to the caller
+def test_prompt_has_own_number_rule() -> None:
+    # Her own number is never given, and she never invents one
     assert (
         "If the caller asks for your phone number or any number of yours, never say digits."
         in SYSTEM_PROMPT
     )
     assert "Never read out a number the caller did not say." in SYSTEM_PROMPT
-    # Rule 2: ordinary, varied small talk; the stock props at most once per call
-    assert "Keep the small talk ordinary and varied" in SYSTEM_PROMPT
-    assert (
-        "mention the kettle, your glasses or the cat at most once in a whole call" in SYSTEM_PROMPT
-    )
-    # Rule 3: no aside repeats in a call; the usual topics are each allowed once
-    assert (
-        "Never mention the same person or thing as an aside more than once in a whole call."
-        in SYSTEM_PROMPT
-    )
-    assert (
-        "The grandson, the neighbour, tea, the garden and the radio are each allowed once, "
-        "so vary them." in SYSTEM_PROMPT
-    )
 
 
-def test_prompt_has_react_first_rule_and_short_examples() -> None:
-    assert "First react to what the caller just said, in one short natural sentence." in (
-        SYSTEM_PROMPT
-    )
-    assert "Then at most one small, ordinary aside." in SYSTEM_PROMPT
-    assert "Never ask the caller to repeat or spell out something they have not said yet." in (
-        SYSTEM_PROMPT
-    )
+def test_prompt_examples_are_labelled_short_and_digit_free() -> None:
     assert "never to be copied word for word" in SYSTEM_PROMPT  # examples are labelled as such
     assert len(EXAMPLES) == 6
     for caller, reply in EXAMPLES:
@@ -186,3 +162,8 @@ def test_prompt_has_react_first_rule_and_short_examples() -> None:
         assert len(reply) < reply_tidy.MAX_PERSONA_CHARS
         assert not any(ch.isdigit() for ch in caller + reply)
         assert not any(ch in "-\u2013\u2014" for ch in caller + reply)  # hyphen, en, em dash
+
+
+def test_default_persona_model_is_the_larger_one() -> None:
+    # Chosen after the persona comparison: 120b sounds more human; 20b stays via --model
+    assert groq_persona.DEFAULT_MODEL == "openai/gpt-oss-120b"

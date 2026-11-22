@@ -42,6 +42,9 @@
 - Both SDKs honour `ANTHROPIC_BASE_URL` / `GROQ_BASE_URL` and `*_CUSTOM_HEADERS` env vars, so an env var can redirect the key. Consider an explicit `base_url`.
 - `DOSSIER_SCHEMA` is sent through `sanitise_schema`, which strips the min/max/length keywords the structured-output API rejects; only the simple currency `pattern` remains, and the recorded run was accepted. The stripped limits are stated in the prompt and enforced by strict `parse_reply`.
 - The cache key ignores prompt text, so prompt changes need a re-record.
+- The persona default is `openai/gpt-oss-120b` (live calls, `try_persona.py`, `compare_persona.py`); `openai/gpt-oss-20b` is still available with `--model` / `--models`. The committed cassettes were recorded with 20b, so replay looks them up by `RECORDED_PERSONA_MODEL` in `natter/__main__.py`, not by the default. A re-record with `record_cassettes.py` uses the default (120b), so `RECORDED_PERSONA_MODEL` must be changed to match in the same commit, or replay misses every persona answer.
+- Replay therefore still plays 20b replies to the old prompt. The live page uses 120b and the current prompt, so replay and live sound different until a re-record.
+- 120b is roughly half the speed of 20b on Groq (about 500 against 1000 tokens a second), so each live reply takes longer. `GroqPersona` gives up after 10 s (`timeout=10.0`), and the owner's 120b comparison run once stopped on `APITimeoutError`. A timeout gives the safe stall.
 - No daily spend cap yet. A record run is bounded only by scenario length (about 20 calls, up to 2x with one retry).
 - The `goal` argument is not type-checked in `build_messages` (only reachable from code; the owner's builder).
 - Persona text in Groq assistant messages is not escaped (the owner's builder).

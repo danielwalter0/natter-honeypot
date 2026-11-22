@@ -12,7 +12,7 @@ from pathlib import Path
 
 from natter.cache import Cache, CachedExtractor, CachedPersona
 from natter.picker import Goal
-from natter.providers import claude_extractor, groq_persona
+from natter.providers import claude_extractor
 from natter.providers.base import Extractor, Persona
 from natter.providers.fakes import FakeExtractor, FakePersona
 from natter.providers.replay_only import ReplayOnly
@@ -24,6 +24,9 @@ SCENARIO = ROOT / "scenarios" / "bank-fraud-01"
 CACHE = SCENARIO / "cache"  # written by scripts/record_cassettes.py
 REPORTS = ROOT / "reports"
 MAX_TURNS = 40
+# The persona model the committed cassettes were recorded with. Replay looks them up
+# by this name, not by the live default; change it only when the cassettes are re-recorded.
+RECORDED_PERSONA_MODEL = "openai/gpt-oss-20b"
 
 
 def load_lines(folder: Path) -> list[str]:
@@ -47,7 +50,7 @@ def replay_providers(cache_dir: Path) -> tuple[Persona, Extractor]:
     """Recorded answers only. ReplayOnly raises if the cache ever misses and asks it."""
     cache = Cache(cache_dir, "replay")
     # The names must match the ones used when recording, or every lookup misses
-    persona = ReplayOnly(f"groq:{groq_persona.DEFAULT_MODEL}")
+    persona = ReplayOnly(f"groq:{RECORDED_PERSONA_MODEL}")
     extractor = ReplayOnly(f"claude:{claude_extractor.DEFAULT_MODEL}")
     return CachedPersona(persona, cache), CachedExtractor(extractor, cache)
 
