@@ -5,6 +5,7 @@ Pure functions, no network, no keys. GroqPersona.reply calls tidy_reply on every
 
 import re
 
+from natter.providers.reply_style import style_guard
 from natter.schema import Turn
 
 MAX_PERSONA_CHARS = 200  # one voice request; the prompt asks for replies under this
@@ -136,6 +137,8 @@ def tidy_reply(text: str, transcript: list[Turn]) -> str:
     text = SPACE_BEFORE_COMMA.sub(",", DOUBLE_COMMA.sub(",", text))
     # strip(" ,") drops a comma left at either end by a leading or trailing dash
     text = " ".join(text.translate(TYPOGRAPHIC).split()).strip(" ,")
+    # 1b. Style guards: repeated love/dear, um/uh, service offers, offers of her details
+    text = style_guard(text, transcript)
     # 2. Short enough for one voice request
     text = cut_to_limit(text)
     # 3. Never let the persona voice a number the caller did not say, or break character

@@ -26,7 +26,7 @@ REPORTS = ROOT / "reports"
 MAX_TURNS = 40
 # The persona model the committed cassettes were recorded with. Replay looks them up
 # by this name, not by the live default; change it only when the cassettes are re-recorded.
-RECORDED_PERSONA_MODEL = "openai/gpt-oss-20b"
+RECORDED_PERSONA_MODEL = "openai/gpt-oss-120b"
 
 
 def load_lines(folder: Path) -> list[str]:
