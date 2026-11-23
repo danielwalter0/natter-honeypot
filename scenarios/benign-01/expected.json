@@ -1,0 +1,11 @@
+{
+  "is_scam": false,
+  "scam_type": null,
+  "claimed_organisation": null,
+  "payment_method": null,
+  "amount": null,
+  "injection_attempt": false,
+  "identifiers": [],
+  "pressure_tactics": [],
+  "information_requested": []
+}

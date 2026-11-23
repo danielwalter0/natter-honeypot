@@ -9,7 +9,7 @@ The full design is in `docs/SPEC.md`. The report shape is in `natter/schema.py`.
 - `make test` runs pytest
 - `make lint` runs ruff and mypy
 - `make run` plays the default scenario in replay mode
-- Replay mode is the default and needs no API keys. Live mode needs `.env`.
+- Replay mode is the default and needs no API keys. Live mode needs `GROQ_API_KEY` and `ANTHROPIC_API_KEY` set in the shell; the app does not read `.env`.
 
 ## How we work
 

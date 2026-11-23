@@ -59,6 +59,15 @@
 - The seam rule cuts abbreviations ("Mr.Smith" becomes "Mr.", "the U.K." becomes "the U.") and misses `"dear\u2026Could"`, because the ellipsis is mapped to "..." only after the seam check.
 - `NATTER_RAW_LOG` is debug-only. It writes raw model text to any path it is given (point it into `spike_out/`, which is gitignored), and a bad path raises `OSError` and ends the call.
 
+## Guard gaps (`reply_tidy.py`, `reply_voice.py`)
+
+- A refusal after a short preface passes: "Oh, I'm sorry, but I can't do that.", "Well dear, I can't share that." Both checks only look at the very start of the reply.
+- An apology followed by "..." or a semicolon is not matched: "I'm sorry... but I can't do that.", "I'm sorry, love; I can't do that."
+- "I'm afraid I can't ..." and "I'm not able to ..." are not on the list of refusal openers.
+- "I'm an AI assistant." passes, because none of the listed phrases appear in it.
+- "As an A.I." is cut at the full stop by the seam rule, so the AI check never sees the whole phrase.
+- The verbs say, tell, give, repeat, share, reveal, print and disclose only count when the reply ends right after the object. A refusal with more words after it ("I can't share that with anyone") is not caught. This is on purpose, so "I can't repeat that, my memory's gone" stays.
+
 ## Speech (`audio_cache.py`, `groq_speech.py`, `throttle.py`)
 
 - `is_wav` checks only the RIFF/WAVE marks. Groq streams WAVs with a placeholder data length (Python's `wave` reads about 89,000 s), so neither the duration nor the length fields are checked. Only the 1 MB per-file and 8 MB per-folder caps bound the audio.

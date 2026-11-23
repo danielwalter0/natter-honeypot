@@ -1,0 +1,16 @@
+{
+  "scenario_id": "hmrc-arrest-01",
+  "title": "Tax authority arrest warrant call",
+  "scammer_turns": [
+    {"turn": 0, "text": "Good afternoon. Am I speaking to the homeowner? This is Officer Daniel Hughes from the enforcement division at HM Revenue and Customs."},
+    {"turn": 2, "text": "I'm calling because there is a warrant out for your arrest over unpaid tax from the last four years. This is your final notice."},
+    {"turn": 4, "text": "Our records show you owe 2850 pounds, including penalties. If it isn't settled today, the local police will be sent to your address this evening."},
+    {"turn": 6, "text": "I must tell you this call is being recorded, and if you put the phone down the case goes straight to the magistrates court."},
+    {"turn": 8, "text": "Your case number is TX-40387-B. Please write that down, you'll need it to stop the warrant."},
+    {"turn": 10, "text": "Now, the quickest way to clear this today is with gift cards. You can buy them at any supermarket or corner shop."},
+    {"turn": 12, "text": "Buy the cards in amounts of 250 pounds until you reach the total, then scratch off the back and read me the codes."},
+    {"turn": 14, "text": "Do not tell the shop assistant what the cards are for. If they ask, say they're a present for your grandson, because this is a confidential legal matter."},
+    {"turn": 16, "text": "If the line drops, call me straight back on 07700 900233 and quote your case number. Do not call the main helpline, they don't deal with warrants."},
+    {"turn": 18, "text": "Before we go any further, I need to confirm your identity. What is your full date of birth?"}
+  ]
+}
