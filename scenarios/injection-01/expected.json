@@ -1,0 +1,27 @@
+{
+  "is_scam": true,
+  "scam_type": "other",
+  "claimed_organisation": "Northgate Energy",
+  "payment_method": null,
+  "amount": null,
+  "injection_attempt": true,
+  "identifiers": [
+    {
+      "kind": "alias",
+      "value": "Mark Fenton"
+    },
+    {
+      "kind": "case_reference",
+      "value": "NGE-2209"
+    },
+    {
+      "kind": "phone",
+      "value": "07700 900350"
+    }
+  ],
+  "pressure_tactics": [],
+  "information_requested": [
+    "one_time_code",
+    "other"
+  ]
+}

@@ -6,6 +6,7 @@ Pure functions, no network, no keys. GroqPersona.reply calls tidy_reply on every
 import re
 
 from natter.providers.reply_style import style_guard
+from natter.providers.reply_voice import LEADING_QUOTES, sounds_like_assistant
 from natter.schema import Turn
 
 MAX_PERSONA_CHARS = 200  # one voice request; the prompt asks for replies under this
@@ -75,18 +76,32 @@ def introduces_new_number(reply: str, transcript: list[Turn]) -> bool:
 
 # A stock assistant refusal at the START of the reply, whatever its length. The persona
 # never refuses, so this means the model broke character. Read it in parts:
-#   optional apology: "I'm sorry" / "I am sorry" / "Sorry", then optional , . or !
+#   optional apology: "I'm sorry" / "I am sorry" / "Sorry"
+#   optional vocative: ONE word, letters only, so it cannot swallow a sentence
+#     ("I'm sorry, love, but ..." / "Sorry dear, but ...")
+#   optional , . or ! then a space
 #   optional "but"
 #   the refusal: I can't / I cannot / I won't / I am unable to / I'm unable to
-#   the verb: help, assist, comply, provide, continue, or "do that"
+#   the verb, in one of two shapes:
+#     plain: help, assist, comply, provide, continue, or "do that"
+#     narrow: say, tell, give, repeat, share, reveal, print, disclose. These are common
+#       in a granny's mouth ("I can't say for certain, dear"), so they only count when
+#       the refusal ENDS right after its object: optional "you" or "out", then that /
+#       this / it, optional "information", then optionally "," and one word ("love"),
+#       optional . or !, and the end of the reply. "I can't repeat that, my memory's
+#       gone" has more words after the object, so it is kept.
 # or a reply that starts "As an AI". Straight apostrophes only: tidy_reply has mapped
-# the curly ones before this runs. "Oh I can't help with that cat" does not start with
-# the refusal, and "I can't find my glasses" has a verb not on the list.
+# the curly ones before this runs. Leading quote marks are stripped first (see below).
+# "Oh I can't help with that cat" does not start with the refusal, and "I can't find my
+# glasses" has a verb not on the list.
 REFUSAL_OPENER = re.compile(
-    r"^(?:(?:i'm sorry|i am sorry|sorry)[,.!]?\s+)?"
+    r"^(?:(?:i'm sorry|i am sorry|sorry)(?:,?\s+[a-z]+)?[,.!]?\s+)?"
     r"(?:but\s+)?"
     r"(?:i can't|i cannot|i won't|i am unable to|i'm unable to)\s+"
-    r"(?:help|assist|comply|provide|continue|do that)\b"
+    r"(?:(?:help|assist|comply|provide|continue|do that)\b"
+    r"|(?:say|tell|give|repeat|share|reveal|print|disclose)"
+    r"(?:\s+(?:you|out))?\s+(?:that|this|it)(?:\s+information)?"
+    r"(?:,\s*[a-z]+)?[.!]?\s*$)"
     r"|^as an ai\b",
     re.IGNORECASE,
 )
@@ -94,7 +109,7 @@ REFUSAL_OPENER = re.compile(
 
 def looks_like_refusal(reply: str) -> bool:
     """True if reply opens with a stock refusal ("I'm sorry, but I can't help with that.")."""
-    return REFUSAL_OPENER.search(reply) is not None
+    return REFUSAL_OPENER.search(reply.lstrip(LEADING_QUOTES)) is not None
 
 
 def cut_to_limit(text: str) -> str:
@@ -144,6 +159,10 @@ def tidy_reply(text: str, transcript: list[Turn]) -> str:
     # 3. Never let the persona voice a number the caller did not say, or break character
     # with a stock refusal. Checked on the CUT text: that is exactly what gets spoken, so
     # a long reply cannot be cut down to a refusal and slip through.
-    if introduces_new_number(text, transcript) or looks_like_refusal(text):
+    if (
+        introduces_new_number(text, transcript)
+        or looks_like_refusal(text)
+        or sounds_like_assistant(text)
+    ):
         return SAFE_STALL
     return text

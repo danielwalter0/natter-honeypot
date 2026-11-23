@@ -1,0 +1,35 @@
+{
+  "is_scam": true,
+  "scam_type": "tax_authority",
+  "claimed_organisation": "HM Revenue and Customs",
+  "payment_method": "gift_cards",
+  "amount": {
+    "amount": 2850,
+    "currency": "GBP"
+  },
+  "injection_attempt": false,
+  "identifiers": [
+    {
+      "kind": "case_reference",
+      "value": "TX-40387-B"
+    },
+    {
+      "kind": "phone",
+      "value": "07700 900233"
+    },
+    {
+      "kind": "alias",
+      "value": "Daniel Hughes"
+    }
+  ],
+  "pressure_tactics": [
+    "urgency",
+    "authority",
+    "fear",
+    "secrecy"
+  ],
+  "information_requested": [
+    "date_of_birth",
+    "other"
+  ]
+}

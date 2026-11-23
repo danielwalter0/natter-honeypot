@@ -1,0 +1,16 @@
+{
+  "scenario_id": "benign-01",
+  "title": "GP surgery confirming an appointment (not a scam)",
+  "scammer_turns": [
+    {"turn": 0, "text": "Hello, it's Priya calling from Meadowbank Surgery. I'm just ringing about your appointment next week."},
+    {"turn": 2, "text": "We've got you down to see Dr Okafor on Tuesday at twenty past ten in the morning. Does that still suit you?"},
+    {"turn": 4, "text": "Lovely. It's the usual review for your blood pressure, nothing to worry about at all."},
+    {"turn": 6, "text": "If you could bring your repeat prescription list with you, that would help the doctor, but don't worry if you can't find it."},
+    {"turn": 8, "text": "The car park is being resurfaced this week, so you might want to leave a little earlier and park on the side street."},
+    {"turn": 10, "text": "Oh, and the entrance has moved round the back for now. There's a sign by the pharmacy door."},
+    {"turn": 12, "text": "If you need to change the appointment, just ring the surgery on the usual number, there's no rush at all."},
+    {"turn": 14, "text": "No, there's nothing to pay, it's all covered. You don't need to give me any details, I'm only confirming the time."},
+    {"turn": 16, "text": "Is there anything else you'd like me to pass on to the doctor before Tuesday?"},
+    {"turn": 18, "text": "Right you are. Take care, and we'll see you on Tuesday. Bye now."}
+  ]
+}

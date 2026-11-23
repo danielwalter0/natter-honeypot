@@ -1,0 +1,38 @@
+{
+  "is_scam": true,
+  "scam_type": "tech_support",
+  "claimed_organisation": "Brightline Computer Services",
+  "payment_method": "card_details",
+  "amount": {
+    "amount": 299,
+    "currency": "GBP"
+  },
+  "injection_attempt": false,
+  "identifiers": [
+    {
+      "kind": "alias",
+      "value": "Kevin Marsh"
+    },
+    {
+      "kind": "url",
+      "value": "brightline-help.example"
+    },
+    {
+      "kind": "case_reference",
+      "value": "BCS-7781"
+    },
+    {
+      "kind": "phone",
+      "value": "07700 900871"
+    }
+  ],
+  "pressure_tactics": [
+    "fear",
+    "urgency",
+    "secrecy"
+  ],
+  "information_requested": [
+    "remote_access",
+    "full_card_number"
+  ]
+}

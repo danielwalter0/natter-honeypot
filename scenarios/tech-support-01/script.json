@@ -1,0 +1,16 @@
+{
+  "scenario_id": "tech-support-01",
+  "title": "Computer infected, remote access call",
+  "scammer_turns": [
+    {"turn": 0, "text": "Hello, good morning. My name is Kevin Marsh and I'm calling from the technical support centre at Brightline Computer Services."},
+    {"turn": 2, "text": "We have been receiving error reports from your computer for the past few days. It has been infected with a very dangerous virus."},
+    {"turn": 4, "text": "The hackers can see everything you type, including your online banking, so it's very important we fix this right now, today."},
+    {"turn": 6, "text": "Can you go to your computer and switch it on for me? I will stay on the line and guide you through it step by step."},
+    {"turn": 8, "text": "Now open your internet browser and go to the website brightline-help.example, that's brightline dash help dot example."},
+    {"turn": 10, "text": "Download the program called HelpDesk Connect and tell me the nine digit code it shows you. That lets me connect to your computer and remove the virus."},
+    {"turn": 12, "text": "I can see the virus now, it's very bad. Your computer protection licence has expired, which is why the hackers got in."},
+    {"turn": 14, "text": "To renew the protection for five years it is 299 pounds. You can pay by debit card, just read me the long number on the front and the three digits on the back."},
+    {"turn": 16, "text": "Please don't turn the computer off or tell anyone. If you switch it off now, the virus will delete all your files."},
+    {"turn": 18, "text": "Your ticket number is BCS-7781. If we get cut off, ring me on 07700 900871 and I'll reconnect to finish the job."}
+  ]
+}
